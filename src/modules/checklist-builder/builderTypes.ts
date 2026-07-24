@@ -33,6 +33,23 @@ export interface DraftSection {
   items?: DraftItem[];
 }
 
+/**
+ * The Portal's trial_unit column only accepts 'days' today (see
+ * bgrowth-portal/supabase/migrations/0005_workspace_trial_config.sql) — the
+ * other three exist here so the picker is ready the moment the Portal adds
+ * them, without another Studio UI change. Publishing with a non-'days' unit
+ * is blocked client-side (see TemplateBuilderScreen's handlePublish) rather
+ * than left to fail with a raw Portal validation error.
+ */
+export type StudioTrialUnit = 'days' | 'weeks' | 'months' | 'hours';
+
+export const TRIAL_UNIT_OPTIONS: { value: StudioTrialUnit; label: string }[] = [
+  { value: 'days', label: 'Days' },
+  { value: 'weeks', label: 'Weeks' },
+  { value: 'months', label: 'Months' },
+  { value: 'hours', label: 'Hours' },
+];
+
 export interface BuilderDraft {
   templateId?: string;
   name: string;
@@ -40,6 +57,17 @@ export interface BuilderDraft {
   category?: string;
   /** Storefront-facing description used when publishing to the Portal. */
   shortDescription?: string;
+  /**
+   * The Workspace's current cover image URL — either restored from a prior
+   * publish's response, or about to be replaced by pendingCoverImage in the
+   * builder screen. Sending nothing at publish time keeps whatever the
+   * Portal already has (see publish_product()'s coalesce on cover_image_url).
+   */
+  coverImageUrl?: string;
+  /** Whether this Workspace offers a trial at all — "trialEnabled" in Portal terms. */
+  isTrialEligible?: boolean;
+  trialDuration?: number;
+  trialUnit?: StudioTrialUnit;
   sections: DraftSection[];
 }
 

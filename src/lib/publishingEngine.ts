@@ -4,6 +4,7 @@
  * the shared secret in browser code) — see api/publish.js.
  */
 import type { ChecklistConfig } from '../engine/types';
+import type { StudioTrialUnit } from '../modules/checklist-builder/builderTypes';
 
 export type PublicationStatus = 'draft' | 'ready_for_review' | 'approved' | 'published' | 'archived';
 
@@ -18,6 +19,10 @@ export interface PublishToPortalInput {
   publishedBy: string;
   changeNotes?: string;
   coverImage?: { base64: string; mimeType: string; fileExtension: string } | { url: string };
+  isTrialEligible: boolean;
+  /** null when isTrialEligible is false — no duration to configure. */
+  trialDuration: number | null;
+  trialUnit: StudioTrialUnit;
 }
 
 export interface PublishToPortalResult {
@@ -57,6 +62,9 @@ export async function publishToPortal(input: PublishToPortalInput): Promise<Publ
         publishedBy: input.publishedBy,
         changeNotes: input.changeNotes,
         coverImage: input.coverImage,
+        isTrialEligible: input.isTrialEligible,
+        trialDuration: input.trialDuration,
+        trialUnit: input.trialUnit,
       }),
     });
 

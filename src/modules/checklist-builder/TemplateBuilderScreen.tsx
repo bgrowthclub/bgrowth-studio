@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { Plus, Save, Eye, EyeOff, Palette, UploadCloud } from 'lucide-react';
+import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X } from 'lucide-react';
 import { ModuleHeader } from './ModuleHeader';
 import { SectionEditor } from './SectionEditor';
 import { LivePreview } from './LivePreview';
@@ -17,10 +17,18 @@ import { Toast } from '../../components/Toast';
 import { api_saveTemplate } from './api';
 import { draftToConfig, draftToConfigJson } from './draftToConfig';
 import type { BuilderDraft, DraftSection } from './builderTypes';
-import { BRAND_COLOR_PRESETS } from './builderTypes';
+import { BRAND_COLOR_PRESETS, TRIAL_UNIT_OPTIONS } from './builderTypes';
 import type { SectionType } from '../../engine/types';
-import { cn } from '../../lib/utils';
+import { cn, compressImage } from '../../lib/utils';
 import { publishToPortal, slugifyProductName } from '../../lib/publishingEngine';
+import { loadSettings } from './SettingsScreen';
+
+/** A cover image the user just picked, staged for the next publish — not yet uploaded. */
+interface PendingCoverImage {
+  base64: string;
+  mimeType: string;
+  fileExtension: string;
+}
 
 function newKey() {
   return `k-${Math.random().toString(36).slice(2, 9)}`;
@@ -52,6 +60,8 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
     initialDraft ?? {
       name: '',
       primaryColor: '#1061EC',
+      isTrialEligible: true,
+      trialUnit: 'days',
       sections: [],
     }
   );
@@ -61,6 +71,9 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [pendingCoverImage, setPendingCoverImage] = useState<PendingCoverImage | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const categories = loadSettings(ownerEmail).categories ?? [];
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -68,6 +81,18 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
     setToast({ message: msg, visible: true });
     window.setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2400);
   }, []);
+
+  const handleCoverImageSelect = async (file: File) => {
+    setIsProcessingImage(true);
+    try {
+      const { base64 } = await compressImage(file);
+      setPendingCoverImage({ base64, mimeType: 'image/jpeg', fileExtension: 'jpg' });
+    } catch (e) {
+      showToast('Could not process that image — ' + (e instanceof Error ? e.message : 'unknown error'));
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
 
   const handleImportSection = (title: string, items: { label: string; description?: string }[]) => {
     const newSec: DraftSection = {
@@ -172,6 +197,18 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
     if (!draft.templateId) { showToast('Save the template before publishing'); return; }
     if (!draft.shortDescription?.trim()) { showToast('Add a short description before publishing'); return; }
 
+    const isTrialEligible = draft.isTrialEligible ?? true;
+    const trialUnit = draft.trialUnit ?? 'days';
+
+    if (isTrialEligible && (!draft.trialDuration || draft.trialDuration <= 0)) {
+      showToast('Set a trial duration, or turn off the free trial toggle');
+      return;
+    }
+    if (isTrialEligible && trialUnit !== 'days') {
+      showToast(`Only "Days" is supported by the Portal today — switch the trial unit to Days, or turn the trial off`);
+      return;
+    }
+
     setIsPublishing(true);
     try {
       const result = await publishToPortal({
@@ -182,12 +219,18 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         categorySlug: draft.category,
         status: 'published',
         publishedBy: ownerEmail,
+        coverImage: pendingCoverImage ?? undefined,
+        isTrialEligible,
+        trialDuration: isTrialEligible ? (draft.trialDuration ?? null) : null,
+        trialUnit,
       });
 
       if (!result.ok) {
         showToast('Publish failed — ' + (result.error ?? 'unknown error'));
         return;
       }
+      setDraft((d) => ({ ...d, coverImageUrl: result.product?.coverImageUrl ?? d.coverImageUrl }));
+      setPendingCoverImage(null);
       showToast(`Published to Portal ✓ (v${result.product?.version})`);
     } catch (e) {
       showToast('Publish failed — ' + (e instanceof Error ? e.message : 'unknown error'));
@@ -259,6 +302,112 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
                     rows={2}
                     onChange={(e) => setDraft((d) => ({ ...d, shortDescription: e.target.value }))}
                   />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">Category</label>
+                  <select
+                    value={draft.category ?? ''}
+                    onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value || undefined }))}
+                    className="w-full rounded-xl border border-navy-100 bg-white px-3 py-2 text-sm text-navy-800 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                  >
+                    <option value="">No category</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  {categories.length === 0 && (
+                    <p className="mt-1 text-xs text-navy-300">
+                      No categories yet — add one in Settings first.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">
+                    Cover Image <span className="normal-case font-normal text-navy-300">(shown on the Portal storefront)</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    {(pendingCoverImage?.base64 || draft.coverImageUrl) ? (
+                      <img
+                        src={pendingCoverImage?.base64 ?? draft.coverImageUrl}
+                        alt=""
+                        className="h-16 w-16 shrink-0 rounded-lg border border-navy-100 object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-navy-200 text-navy-300">
+                        <ImagePlus className="h-5 w-5" />
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="cursor-pointer rounded-lg border border-navy-100 bg-white px-3 py-1.5 text-xs font-semibold text-navy-700 shadow-sm hover:bg-navy-50">
+                        {isProcessingImage ? 'Processing…' : pendingCoverImage || draft.coverImageUrl ? 'Replace Image' : 'Upload Image'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={isProcessingImage}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleCoverImageSelect(file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {pendingCoverImage && (
+                        <button
+                          type="button"
+                          onClick={() => setPendingCoverImage(null)}
+                          className="flex items-center gap-1 text-xs font-medium text-navy-400 hover:text-navy-600"
+                        >
+                          <X className="h-3 w-3" />
+                          Cancel new image
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="text-[11px] font-semibold uppercase tracking-wide text-navy-400">Free Trial</label>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-navy-600">
+                      <input
+                        type="checkbox"
+                        checked={draft.isTrialEligible ?? true}
+                        onChange={(e) => setDraft((d) => ({ ...d, isTrialEligible: e.target.checked }))}
+                        className="h-4 w-4 rounded border-navy-200 text-brand focus:ring-brand/30"
+                      />
+                      Offer a free trial
+                    </label>
+                  </div>
+                  {(draft.isTrialEligible ?? true) ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={draft.trialDuration ?? ''}
+                        placeholder="14"
+                        className="w-24"
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, trialDuration: e.target.value ? Number(e.target.value) : undefined }))
+                        }
+                      />
+                      <select
+                        value={draft.trialUnit ?? 'days'}
+                        onChange={(e) => setDraft((d) => ({ ...d, trialUnit: e.target.value as BuilderDraft['trialUnit'] }))}
+                        className="rounded-xl border border-navy-100 bg-white px-3 py-2 text-sm text-navy-800 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                      >
+                        {TRIAL_UNIT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-navy-300">No trial — customers must purchase to access this Workspace.</p>
+                  )}
+                  {(draft.isTrialEligible ?? true) && draft.trialUnit && draft.trialUnit !== 'days' && (
+                    <p className="mt-1.5 text-xs text-amber-600">
+                      Only "Days" is fully supported by the Portal today — Weeks/Months/Hours are prepared for a future release and will be rejected at publish time.
+                    </p>
+                  )}
                 </div>
                   <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">Brand Color</label>
