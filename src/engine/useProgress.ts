@@ -19,14 +19,25 @@ function progressForSection(section: SectionConfig, data: ChecklistData): Sectio
     const requiredFields = section.fields.filter((f) => f.required);
     const countedFields = section.fields.filter((f) =>       f.type !== 'title' && f.type !== 'static_text' && f.type !== 'image' && f.type !== 'file' && f.type !== 'link'     );
     const filled = countedFields.filter((f) => isNonEmpty(values[f.id])).length;
-    const isComplete = requiredFields.every((f) => isNonEmpty(values[f.id]));
+    // A section with no required fields does NOT become "every field is
+    // required" — `.every()` on an empty requiredFields array is vacuously
+    // true, which is exactly the bug this replaces. With no required
+    // fields, completion instead tracks real progress across every counted
+    // field, only reading complete once all of them are filled.
+    const isComplete =
+      requiredFields.length > 0
+        ? requiredFields.every((f) => isNonEmpty(values[f.id]))
+        : countedFields.length > 0 && filled === countedFields.length;
     return { id: section.id, filled, total: countedFields.length, isComplete, isOptional };
   }
 
   if (section.type === 'checklist') {
     const values = (data[section.id] as Record<string, boolean>) ?? {};
     const filled = section.items.filter((item) => values[item.id]).length;
-    return { id: section.id, filled, total: section.items.length, isComplete: filled === section.items.length, isOptional };
+    // An empty items array must never read as "complete" — there's nothing
+    // to complete yet (same vacuous-truth issue as the empty-required-fields case above).
+    const isComplete = section.items.length > 0 && filled === section.items.length;
+    return { id: section.id, filled, total: section.items.length, isComplete, isOptional };
   }
 
   if (section.type === 'outcome') {
