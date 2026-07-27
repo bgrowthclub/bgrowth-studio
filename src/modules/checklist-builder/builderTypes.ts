@@ -68,6 +68,12 @@ export interface BuilderDraft {
   isTrialEligible?: boolean;
   trialDuration?: number;
   trialUnit?: StudioTrialUnit;
+  /** Whether this Workspace costs nothing at all — distinct from isTrialEligible (a free trial of a paid product). */
+  isFree?: boolean;
+  /** Dollars, as entered in the Template Settings UI — converted to price_cents at publish time. Ignored when isFree is true. */
+  price?: number;
+  /** Set once Commerce creates a real Stripe Price object for this Workspace — no authoring UI for this yet, entered manually when it exists. */
+  stripePriceId?: string;
   sections: DraftSection[];
 }
 

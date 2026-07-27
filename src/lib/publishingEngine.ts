@@ -23,11 +23,26 @@ export interface PublishToPortalInput {
   /** null when isTrialEligible is false — no duration to configure. */
   trialDuration: number | null;
   trialUnit: StudioTrialUnit;
+  isFree: boolean;
+  /** In cents — null when isFree is true. */
+  priceCents: number | null;
+  currency: string;
+  /** No authoring UI for this yet — entered manually in builderTypes.ts once Commerce creates a real Stripe Price object. */
+  stripePriceId?: string | null;
 }
 
 export interface PublishToPortalResult {
   ok: boolean;
-  product?: { id: string; slug: string; status: string; version: number; coverImageUrl: string | null };
+  product?: {
+    id: string;
+    slug: string;
+    status: string;
+    version: number;
+    coverImageUrl: string | null;
+    isFree?: boolean;
+    priceCents?: number | null;
+    currency?: string;
+  };
   error?: string;
   issues?: unknown;
 }
@@ -65,6 +80,10 @@ export async function publishToPortal(input: PublishToPortalInput): Promise<Publ
         isTrialEligible: input.isTrialEligible,
         trialDuration: input.trialDuration,
         trialUnit: input.trialUnit,
+        isFree: input.isFree,
+        priceCents: input.priceCents,
+        currency: input.currency,
+        stripePriceId: input.stripePriceId,
       }),
     });
 

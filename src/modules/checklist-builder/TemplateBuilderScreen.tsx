@@ -62,6 +62,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
       primaryColor: '#1061EC',
       isTrialEligible: true,
       trialUnit: 'days',
+      isFree: false,
       sections: [],
     }
   );
@@ -209,6 +210,12 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
       return;
     }
 
+    const isFree = draft.isFree ?? false;
+    if (!isFree && (!draft.price || draft.price <= 0)) {
+      showToast('Set a price, or mark this Workspace as free');
+      return;
+    }
+
     setIsPublishing(true);
     try {
       const result = await publishToPortal({
@@ -223,6 +230,10 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         isTrialEligible,
         trialDuration: isTrialEligible ? (draft.trialDuration ?? null) : null,
         trialUnit,
+        isFree,
+        priceCents: isFree ? null : Math.round((draft.price ?? 0) * 100),
+        currency: 'usd',
+        stripePriceId: draft.stripePriceId ?? null,
       });
 
       if (!result.ok) {
@@ -407,6 +418,37 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
                     <p className="mt-1.5 text-xs text-amber-600">
                       Only "Days" is fully supported by the Portal today — Weeks/Months/Hours are prepared for a future release and will be rejected at publish time.
                     </p>
+                  )}
+                </div>
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="text-[11px] font-semibold uppercase tracking-wide text-navy-400">Pricing</label>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-navy-600">
+                      <input
+                        type="checkbox"
+                        checked={draft.isFree ?? false}
+                        onChange={(e) => setDraft((d) => ({ ...d, isFree: e.target.checked }))}
+                        className="h-4 w-4 rounded border-navy-200 text-brand focus:ring-brand/30"
+                      />
+                      This Workspace is free
+                    </label>
+                  </div>
+                  {!(draft.isFree ?? false) ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-navy-400">$</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={draft.price ?? ''}
+                        placeholder="49.00"
+                        className="w-28"
+                        onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value ? Number(e.target.value) : undefined }))}
+                      />
+                      <span className="text-xs text-navy-300">USD, one-time</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-navy-300">No charge — customers get full access at no cost.</p>
                   )}
                 </div>
                   <div>
