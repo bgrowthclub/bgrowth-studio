@@ -96,3 +96,45 @@ export async function publishToPortal(input: PublishToPortalInput): Promise<Publ
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+export interface ArchiveProductInput {
+  /** The saved template's stable id — must have been published at least once; the Portal rejects archiving a product it has no record of. */
+  studioProductId: string;
+  publishedBy: string;
+}
+
+export interface ArchiveProductResult {
+  ok: boolean;
+  product?: { id: string; slug: string; status: string; version: number };
+  error?: string;
+}
+
+/**
+ * Unpublish — removes the Workspace from the public catalog and blocks new
+ * purchases/trials, while preserving every existing customer's access,
+ * license, review, and the full version history (see
+ * portal.archive_product() in bgrowth-portal's
+ * supabase/migrations/0015_asset_lifecycle.sql). Deliberately a separate
+ * call from publishToPortal() — archiving only ever needs the product's id,
+ * never its full content/pricing/trial payload.
+ */
+export async function archiveProduct(input: ArchiveProductInput): Promise<ArchiveProductResult> {
+  try {
+    const response = await fetch('/api/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studioProductId: input.studioProductId,
+        publishedBy: input.publishedBy,
+      }),
+    });
+
+    const json = (await response.json()) as ArchiveProductResult;
+    if (!response.ok) {
+      return { ok: false, error: json.error ?? `Archive failed (${response.status})` };
+    }
+    return json;
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

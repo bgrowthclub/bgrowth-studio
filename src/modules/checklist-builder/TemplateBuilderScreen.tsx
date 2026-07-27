@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X } from 'lucide-react';
+import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X, Archive } from 'lucide-react';
 import { ModuleHeader } from './ModuleHeader';
 import { SectionEditor } from './SectionEditor';
 import { LivePreview } from './LivePreview';
@@ -14,13 +14,14 @@ import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { PrimaryButton, SecondaryButton } from '../../components/ui/Button';
 import { Toast } from '../../components/Toast';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { api_saveTemplate } from './api';
 import { draftToConfig, draftToConfigJson } from './draftToConfig';
 import type { BuilderDraft, DraftSection } from './builderTypes';
 import { BRAND_COLOR_PRESETS, TRIAL_UNIT_OPTIONS } from './builderTypes';
 import type { SectionType } from '../../engine/types';
 import { cn, compressImage } from '../../lib/utils';
-import { publishToPortal, slugifyProductName } from '../../lib/publishingEngine';
+import { publishToPortal, archiveProduct, slugifyProductName } from '../../lib/publishingEngine';
 import { loadSettings } from './SettingsScreen';
 
 /** A cover image the user just picked, staged for the next publish — not yet uploaded. */
@@ -69,6 +70,8 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   const [showPreview, setShowPreview] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -250,6 +253,34 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
     }
   };
 
+  /**
+   * Unpublish — removes the Workspace from the Portal's public catalog and
+   * blocks new purchases/trials, while every existing customer's license,
+   * review, and the full version history stay completely intact (see
+   * portal.archive_product()). Deliberately does NOT reuse handlePublish's
+   * payload construction — archiving only needs the product's stable id,
+   * never a re-sent content/pricing/trial payload (Studio's draft state
+   * doesn't persist those between sessions, so resending them here could
+   * silently overwrite real values with this session's stale defaults).
+   */
+  const handleArchiveConfirm = async () => {
+    if (!draft.templateId) return;
+    setIsArchiving(true);
+    try {
+      const result = await archiveProduct({ studioProductId: draft.templateId, publishedBy: ownerEmail });
+      if (!result.ok) {
+        showToast('Archive failed — ' + (result.error ?? 'unknown error'));
+        return;
+      }
+      showToast(`Unpublished ✓ (v${result.product?.version})`);
+    } catch (e) {
+      showToast('Archive failed — ' + (e instanceof Error ? e.message : 'unknown error'));
+    } finally {
+      setIsArchiving(false);
+      setShowArchiveConfirm(false);
+    }
+  };
+
   const liveConfig = draftToConfig(draft);
   const sectionCount = draft.sections.length;
 
@@ -278,6 +309,16 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
             >
               <UploadCloud className="h-4 w-4" />
               {isPublishing ? 'Publishing…' : 'Publish to Portal'}
+            </SecondaryButton>
+            <SecondaryButton
+              size="sm"
+              onClick={() => setShowArchiveConfirm(true)}
+              disabled={isArchiving || !draft.templateId}
+              title={!draft.templateId ? 'Save and publish the template first' : 'Unpublish from the BGrowth Portal'}
+              className="text-red-500 hover:border-red-200 hover:bg-red-50"
+            >
+              <Archive className="h-4 w-4" />
+              {isArchiving ? 'Unpublishing…' : 'Unpublish'}
             </SecondaryButton>
           </div>
         }
@@ -578,6 +619,14 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         onImport={handleImportSection}
+      />
+      <ConfirmDialog
+        open={showArchiveConfirm}
+        title={`Unpublish "${draft.name}"?`}
+        description="This removes the Workspace from the Portal's public catalog and blocks new purchases or trials. Existing customers keep full access, their reviews stay visible, and the full version history is preserved — you can publish again at any time."
+        confirmLabel={isArchiving ? 'Unpublishing…' : 'Unpublish'}
+        onConfirm={handleArchiveConfirm}
+        onCancel={() => setShowArchiveConfirm(false)}
       />
       <Toast message={toast.message} visible={toast.visible} />
     </div>
