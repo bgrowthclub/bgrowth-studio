@@ -5,11 +5,12 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X, Archive } from 'lucide-react';
+import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X, Archive, ShieldCheck } from 'lucide-react';
 import { ModuleHeader } from './ModuleHeader';
 import { SectionEditor } from './SectionEditor';
 import { LivePreview } from './LivePreview';
 import { TemplateImportModal } from './TemplateImportModal';
+import { TemplateIntegrityModal } from './TemplateIntegrityModal';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { PrimaryButton, SecondaryButton } from '../../components/ui/Button';
@@ -20,19 +21,16 @@ import { draftToConfig, draftToConfigJson } from './draftToConfig';
 import type { BuilderDraft, DraftSection } from './builderTypes';
 import { BRAND_COLOR_PRESETS, TRIAL_UNIT_OPTIONS } from './builderTypes';
 import type { SectionType } from '../../engine/types';
-import { cn, compressImage } from '../../lib/utils';
+import { cn, compressImage, newKey } from '../../lib/utils';
 import { publishToPortal, archiveProduct, slugifyProductName } from '../../lib/publishingEngine';
 import { loadSettings } from './SettingsScreen';
+import { scanTemplateIntegrity, repairTemplateIntegrity, type TemplateIntegrityReport, type IdRepair } from './templateIntegrity';
 
 /** A cover image the user just picked, staged for the next publish — not yet uploaded. */
 interface PendingCoverImage {
   base64: string;
   mimeType: string;
   fileExtension: string;
-}
-
-function newKey() {
-  return `k-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function newSection(type: SectionType, index: number): DraftSection {
@@ -77,6 +75,10 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   const [showImportModal, setShowImportModal] = useState(false);
   const [pendingCoverImage, setPendingCoverImage] = useState<PendingCoverImage | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [showIntegrityModal, setShowIntegrityModal] = useState(false);
+  const [integrityReport, setIntegrityReport] = useState<TemplateIntegrityReport | null>(null);
+  const [isFixingIds, setIsFixingIds] = useState(false);
+  const [lastFixSummary, setLastFixSummary] = useState<IdRepair[] | null>(null);
   const categories = loadSettings(ownerEmail).categories ?? [];
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -289,6 +291,47 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
     }
   };
 
+  /** Opens the Template Integrity modal with a fresh scan of the current draft — see templateIntegrity.ts. */
+  const handleValidateTemplate = () => {
+    setLastFixSummary(null);
+    setIntegrityReport(scanTemplateIntegrity(draft));
+    setShowIntegrityModal(true);
+  };
+
+  /**
+   * Repairs every duplicate id found (see repairTemplateIntegrity's own
+   * docs on why only subsequent occurrences are ever renamed), then saves
+   * the corrected template immediately — a repaired-but-unsaved draft is
+   * exactly the kind of state that would silently revert on next load.
+   */
+  const handleFixIds = async () => {
+    if (!integrityReport || integrityReport.isValid) return;
+    if (!draft.name.trim()) {
+      showToast('Add a template name before saving the fix');
+      return;
+    }
+    setIsFixingIds(true);
+    try {
+      const { draft: repaired, repairs } = repairTemplateIntegrity(draft);
+      const saved = await api_saveTemplate({
+        templateId: repaired.templateId,
+        ownerEmail,
+        name: repaired.name,
+        category: repaired.category ?? '',
+        configJson: draftToConfigJson(repaired),
+      });
+      const finalDraft = { ...repaired, templateId: saved.templateId };
+      setDraft(finalDraft);
+      setIntegrityReport(scanTemplateIntegrity(finalDraft));
+      setLastFixSummary(repairs);
+      showToast(`Fixed ${repairs.length} duplicate ID${repairs.length === 1 ? '' : 's'} and saved the template ✓`);
+    } catch (e) {
+      showToast('Fix failed — ' + (e instanceof Error ? e.message : 'unknown error'));
+    } finally {
+      setIsFixingIds(false);
+    }
+  };
+
   const liveConfig = draftToConfig(draft);
   const sectionCount = draft.sections.length;
 
@@ -304,6 +347,15 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
             <SecondaryButton size="sm" onClick={() => setShowPreview((v) => !v)}>
               {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               <span className="hidden sm:inline">{showPreview ? 'Hide preview' : 'Preview'}</span>
+            </SecondaryButton>
+            <SecondaryButton
+              size="sm"
+              onClick={handleValidateTemplate}
+              disabled={sectionCount === 0}
+              title="Check every section/field/checklist item id for duplicates"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">Validate Template</span>
             </SecondaryButton>
             <PrimaryButton size="sm" onClick={handleSave} disabled={isSaving}>
               <Save className="h-4 w-4" />
@@ -636,6 +688,16 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         onConfirm={handleArchiveConfirm}
         onCancel={() => setShowArchiveConfirm(false)}
       />
+      {integrityReport && (
+        <TemplateIntegrityModal
+          isOpen={showIntegrityModal}
+          onClose={() => setShowIntegrityModal(false)}
+          report={integrityReport}
+          onFixIds={handleFixIds}
+          isFixing={isFixingIds}
+          lastFixSummary={lastFixSummary}
+        />
+      )}
       <Toast message={toast.message} visible={toast.visible} />
     </div>
   );

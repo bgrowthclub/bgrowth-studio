@@ -17,11 +17,8 @@ import { getIcon } from '../../engine/icons';
 import { SECTION_TYPE_LABELS, SECTION_TYPE_DESCRIPTIONS } from './builderTypes';
 import type { DraftSection, DraftField, DraftItem } from './builderTypes';
 import type { SectionType } from '../../engine/types';
+import { newKey } from '../../lib/utils';
 // cn is used in the section header className
-
-function newKey() {
-  return `k-${Math.random().toString(36).slice(2, 9)}`;
-}
 
 function defaultField(): DraftField {
   return { _key: newKey(), id: newKey(), label: '', type: 'text', icon: 'file-text', required: false };

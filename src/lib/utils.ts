@@ -5,6 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * The one place a new section/field/item/checklist-item id (or dnd-kit
+ * `_key`) gets generated — random, not Date.now()-based, so two entries
+ * created (or duplicated) within the same millisecond can never collide.
+ * These ids double as the React key everywhere this content renders, both
+ * in Studio's own builder/fill screens and, once published, every
+ * customer-facing Workspace screen in bgrowth-portal — a collision here
+ * corrupts that keyed reconciliation (see templateIntegrity.ts, which
+ * detects and repairs exactly this).
+ */
+export function newKey() {
+  return `k-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 // Client-side image compression using HTML5 Canvas
 export function compressImage(
   file: File,
