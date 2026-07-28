@@ -132,7 +132,15 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   const duplicateSection = (index: number) => {
     setDraft((d) => {
       const sections = [...d.sections];
-      const clone = { ...sections[index], _key: `sk-${Date.now()}`, id: `id-${Date.now()}` };
+      // newKey() (random, not Date.now()-based) for both — `id` ends up as
+      // the React key everywhere this section renders (the builder's own
+      // WorkflowAccordion/PrintableSummary/StepList, and, once published,
+      // the Portal's WorkspaceAccordion/WorkspacePrintSummary too). Two
+      // sections duplicated within the same millisecond used to collide on
+      // a Date.now()-only id, corrupting the keyed list and crashing with
+      // "Failed to execute 'insertBefore' on 'Node'" the next time the
+      // active section changed (e.g. clicking Save & Continue).
+      const clone = { ...sections[index], _key: newKey(), id: newKey() };
       sections.splice(index + 1, 0, clone);
       return { ...d, sections };
     });

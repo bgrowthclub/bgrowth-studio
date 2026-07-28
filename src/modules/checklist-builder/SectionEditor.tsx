@@ -64,7 +64,11 @@ export function SectionEditor({ section, index, onChange, onDelete, onDuplicate,
   const addField = () => onChange({ ...section, fields: [...(section.fields ?? []), defaultField()] });
   const duplicateField = (fi: number) => {
     const fields = [...(section.fields ?? [])];
-    const clone = { ...fields[fi], _key: `fk-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, id: `id-${Date.now()}` };
+    // newKey() (random, not Date.now()-based) for both — `id` ends up as the
+    // React key everywhere this content renders (builder AND, once
+    // published, every customer-facing Workspace/Checklist screen), so two
+    // fields duplicated within the same millisecond must never collide.
+    const clone = { ...fields[fi], _key: newKey(), id: newKey() };
     fields.splice(fi + 1, 0, clone);
     onChange({ ...section, fields });
   };
@@ -90,7 +94,9 @@ export function SectionEditor({ section, index, onChange, onDelete, onDuplicate,
   const addItem = () => onChange({ ...section, items: [...(section.items ?? []), defaultItem()] });
   const duplicateItem = (ii: number) => {
     const items = [...(section.items ?? [])];
-    const clone = { ...items[ii], _key: `ki-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, id: `id-${Date.now()}` };
+    // Same reasoning as duplicateField above: newKey() for both, never
+    // Date.now() alone.
+    const clone = { ...items[ii], _key: newKey(), id: newKey() };
     items.splice(ii + 1, 0, clone);
     onChange({ ...section, items });
   };
