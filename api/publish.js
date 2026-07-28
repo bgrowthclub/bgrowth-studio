@@ -23,6 +23,20 @@ export default async function handler(req, res) {
   const portalUrl = process.env.PORTAL_PUBLISHING_ENGINE_URL;
   const secret = process.env.PORTAL_PUBLISHING_ENGINE_SECRET;
 
+  // TEMP DIAGNOSTIC — the vars are confirmed present in the Vercel project
+  // (Production + Preview), so this checks what the running function
+  // itself actually sees: which deployment target it's executing under
+  // (VERCEL_ENV/VERCEL_URL), and whether each var is present/what length
+  // it resolved to — never the values themselves.
+  console.log('[api/publish] env diagnostic', {
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_URL: process.env.VERCEL_URL,
+    portalUrlDefined: process.env.PORTAL_PUBLISHING_ENGINE_URL !== undefined,
+    secretDefined: process.env.PORTAL_PUBLISHING_ENGINE_SECRET !== undefined,
+    portalUrlLength: process.env.PORTAL_PUBLISHING_ENGINE_URL?.length,
+    secretLength: process.env.PORTAL_PUBLISHING_ENGINE_SECRET?.length,
+  });
+
   if (!portalUrl || !secret) {
     return res.status(500).json({
       ok: false,
