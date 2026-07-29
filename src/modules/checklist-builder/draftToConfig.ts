@@ -54,9 +54,9 @@ export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
       helpUrl: 'https://bgrowthclub.com',
     },
     sections: draft.sections.map((s, i) => draftSectionToConfig(s, i)),
-    // Round-trips cover image/description/price/currency/publish state
-    // through Studio's own template storage (configJson) — see
-    // PublishingMetadata's own docs for why this lives here rather than
+    // Round-trips cover image/description/price/currency/trial config/
+    // publish state through Studio's own template storage (configJson) —
+    // see PublishingMetadata's own docs for why this lives here rather than
     // relying on the Portal to remember it back to Studio.
     publishing: {
       shortDescription: draft.shortDescription,
@@ -67,6 +67,9 @@ export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
       stripePriceId: draft.stripePriceId ?? null,
       status: draft.publishStatus ?? 'draft',
       publishedAt: draft.publishedAt ?? null,
+      isTrialEligible: draft.isTrialEligible ?? true,
+      trialDuration: draft.trialDuration ?? null,
+      trialUnit: draft.trialUnit ?? 'days',
     },
   };
 }

@@ -119,6 +119,12 @@ export interface PublishingMetadata {
   status: 'draft' | 'published' | 'archived';
   /** ISO timestamp of the most recent successful publish — set once, never cleared by archiving. Undefined/null until the first publish. */
   publishedAt?: string | null;
+  /** Whether this Workspace offers a free trial at all — "trialEnabled" in Portal terms. */
+  isTrialEligible?: boolean;
+  /** Null when isTrialEligible is false — no duration to configure. */
+  trialDuration?: number | null;
+  /** Only 'days' is accepted by the Portal today — see TemplateBuilderScreen's own publish-time validation. The other values exist so the unit picker is ready for a future Portal release without another Studio change. */
+  trialUnit?: 'days' | 'weeks' | 'months' | 'hours';
 }
 
 export interface ChecklistConfig {

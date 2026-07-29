@@ -102,14 +102,15 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
       }
       const config = JSON.parse(configJson);      // Convert config back to BuilderDraft format for editing
       // category is restored from the template record itself (it's a real,
-      // persisted column). Cover image/description/price/currency/publish
-      // status are restored from config.publishing (see
+      // persisted column). Cover image/description/price/currency/trial
+      // config/publish status are all restored from config.publishing (see
       // draftToConfig.ts/PublishingMetadata) — persisted in configJson on
       // every Save/Publish specifically so reopening a previously-published
       // checklist shows its real last-published values instead of blank
-      // fields. Trial config (isTrialEligible/trialDuration/trialUnit) has
-      // the same historical gap and still isn't restored here — a separate,
-      // not-yet-fixed issue, re-enter those before republishing if needed.
+      // fields. `publishing ?? {}` plus the `??` defaults below keep this
+      // safe for a template saved before PublishingMetadata existed at all —
+      // it just falls back to the same defaults a brand-new draft gets
+      // (see TemplateBuilderScreen's initial useState), never to blank/off.
       const publishing = config.publishing ?? {};
       const draft: BuilderDraft = {
         templateId: t.templateId,
@@ -124,6 +125,9 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
         currency: publishing.currency ?? 'usd',
         publishStatus: publishing.status ?? 'draft',
         publishedAt: publishing.publishedAt ?? null,
+        isTrialEligible: publishing.isTrialEligible ?? true,
+        trialDuration: publishing.trialDuration ?? undefined,
+        trialUnit: publishing.trialUnit ?? 'days',
         sections: (config.sections ?? []).map((s: Record<string, unknown>, i: number) => ({
           ...s,
           _key: `k-${i}-${Math.random().toString(36).slice(2, 6)}`,
