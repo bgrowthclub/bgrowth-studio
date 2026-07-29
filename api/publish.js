@@ -37,7 +37,31 @@ export default async function handler(req, res) {
     secretLength: process.env.PORTAL_PUBLISHING_ENGINE_SECRET?.length,
   });
 
+  // TEMP DIAGNOSTIC — the only code between the env diagnostic log above and
+  // the "target publishing URL" log below is this one guard. "Defined"
+  // (!== undefined, logged above) and "truthy" are NOT the same thing: an
+  // env var set to an empty string, or to whitespace, is defined but still
+  // falsy, and would take this exact branch — silently reproducing the
+  // "not configured" error and skipping every log after it, even though the
+  // var technically "exists" in the Vercel dashboard. This logs the actual
+  // boolean the guard evaluates, so a mismatch against the "defined" log
+  // above is directly visible instead of inferred.
+  console.log('[api/publish] guard check', {
+    portalUrlTruthy: Boolean(portalUrl),
+    secretTruthy: Boolean(secret),
+    portalUrlIsEmptyString: portalUrl === '',
+    secretIsEmptyString: secret === '',
+    portalUrlTrimmedLength: portalUrl?.trim().length,
+    secretTrimmedLength: secret?.trim().length,
+  });
+
   if (!portalUrl || !secret) {
+    // TEMP DIAGNOSTIC — if this line logs, the "not configured" response is
+    // being returned RIGHT HERE, which fully explains "no logs after the env
+    // check": every subsequent console.log in this function is unreachable
+    // once this return executes. This isn't a crash or a truncated log —
+    // it's this exact, ordinary early return.
+    console.log('[api/publish] EARLY RETURN — guard triggered, responding "not configured" now');
     return res.status(500).json({
       ok: false,
       error: 'PORTAL_PUBLISHING_ENGINE_URL / PORTAL_PUBLISHING_ENGINE_SECRET are not configured on Studio.',
