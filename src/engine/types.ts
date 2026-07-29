@@ -93,11 +93,40 @@ export interface FooterConfig {
   helpUrl?: string;
 }
 
+/**
+ * Publishing/storefront metadata for this checklist — cover image,
+ * description, pricing, and publish state. Lives inside ChecklistConfig
+ * (persisted verbatim in configJson via api_saveTemplate, Studio's own
+ * template storage) specifically so it round-trips through Studio itself
+ * on every save/load, independent of the Portal. Sent to the Portal at
+ * publish time too (see draftToConfig/publishToPortal), but the Portal's
+ * own content schema (bgrowth-portal's workspaceContentSchema) doesn't
+ * recognize this key and silently drops it when storing — harmless,
+ * since the Portal already receives the same values as dedicated
+ * top-level publish fields (shortDescription/coverImage/priceCents/etc.)
+ * and stores those in its own products columns. This object exists purely
+ * so Studio remembers what it last published without needing the Portal.
+ */
+export interface PublishingMetadata {
+  shortDescription?: string;
+  coverImageUrl?: string;
+  isFree?: boolean;
+  /** In cents — null/undefined when isFree is true. */
+  priceCents?: number | null;
+  currency?: string;
+  stripePriceId?: string | null;
+  /** Whether this checklist has ever been published to the Portal, and its current state there — distinct from ChecklistTemplate.status (Active/Archived), which is Studio's own unrelated template-management lifecycle. */
+  status: 'draft' | 'published' | 'archived';
+  /** ISO timestamp of the most recent successful publish — set once, never cleared by archiving. Undefined/null until the first publish. */
+  publishedAt?: string | null;
+}
+
 export interface ChecklistConfig {
   productId: string;
   brand: BrandConfig;
   footer: FooterConfig;
   sections: SectionConfig[];
+  publishing?: PublishingMetadata;
 }
 
 /** Generic filled-in data shape. Keyed by section id.

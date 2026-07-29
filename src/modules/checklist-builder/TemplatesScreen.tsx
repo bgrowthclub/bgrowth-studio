@@ -102,16 +102,28 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
       }
       const config = JSON.parse(configJson);      // Convert config back to BuilderDraft format for editing
       // category is restored from the template record itself (it's a real,
-      // persisted column) — but shortDescription/coverImageUrl/trial config
-      // aren't stored anywhere outside the Portal today (see
-      // TemplateBuilderScreen's Template Settings fields), so reopening a
-      // previously-published Workspace won't show its last-published values
-      // for those; re-enter them before republishing if they need to change.
+      // persisted column). Cover image/description/price/currency/publish
+      // status are restored from config.publishing (see
+      // draftToConfig.ts/PublishingMetadata) — persisted in configJson on
+      // every Save/Publish specifically so reopening a previously-published
+      // checklist shows its real last-published values instead of blank
+      // fields. Trial config (isTrialEligible/trialDuration/trialUnit) has
+      // the same historical gap and still isn't restored here — a separate,
+      // not-yet-fixed issue, re-enter those before republishing if needed.
+      const publishing = config.publishing ?? {};
       const draft: BuilderDraft = {
         templateId: t.templateId,
         name: config.brand?.name ?? t.name,
         primaryColor: config.brand?.primaryColor ?? '#1061EC',
         category: t.category,
+        shortDescription: publishing.shortDescription,
+        coverImageUrl: publishing.coverImageUrl,
+        isFree: publishing.isFree ?? false,
+        price: publishing.priceCents != null ? publishing.priceCents / 100 : undefined,
+        stripePriceId: publishing.stripePriceId ?? undefined,
+        currency: publishing.currency ?? 'usd',
+        publishStatus: publishing.status ?? 'draft',
+        publishedAt: publishing.publishedAt ?? null,
         sections: (config.sections ?? []).map((s: Record<string, unknown>, i: number) => ({
           ...s,
           _key: `k-${i}-${Math.random().toString(36).slice(2, 6)}`,

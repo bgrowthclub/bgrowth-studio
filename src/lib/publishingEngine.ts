@@ -42,6 +42,8 @@ export interface PublishToPortalResult {
     isFree?: boolean;
     priceCents?: number | null;
     currency?: string;
+    /** The Portal's own authoritative last_published_at — preferred over a client-side timestamp when recording PublishingMetadata.publishedAt. */
+    publishedAt?: string | null;
   };
   error?: string;
   issues?: unknown;

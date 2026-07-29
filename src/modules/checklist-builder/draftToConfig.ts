@@ -54,6 +54,20 @@ export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
       helpUrl: 'https://bgrowthclub.com',
     },
     sections: draft.sections.map((s, i) => draftSectionToConfig(s, i)),
+    // Round-trips cover image/description/price/currency/publish state
+    // through Studio's own template storage (configJson) — see
+    // PublishingMetadata's own docs for why this lives here rather than
+    // relying on the Portal to remember it back to Studio.
+    publishing: {
+      shortDescription: draft.shortDescription,
+      coverImageUrl: draft.coverImageUrl,
+      isFree: draft.isFree ?? false,
+      priceCents: draft.isFree ? null : draft.price != null ? Math.round(draft.price * 100) : null,
+      currency: draft.currency ?? 'usd',
+      stripePriceId: draft.stripePriceId ?? null,
+      status: draft.publishStatus ?? 'draft',
+      publishedAt: draft.publishedAt ?? null,
+    },
   };
 }
 

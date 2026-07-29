@@ -253,8 +253,43 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         showToast('Publish failed — ' + (result.error ?? 'unknown error'));
         return;
       }
-      setDraft((d) => ({ ...d, coverImageUrl: result.product?.coverImageUrl ?? d.coverImageUrl }));
+
+      const updatedDraft: BuilderDraft = {
+        ...draft,
+        coverImageUrl: result.product?.coverImageUrl ?? draft.coverImageUrl,
+        currency: result.product?.currency ?? draft.currency ?? 'usd',
+        publishStatus: 'published',
+        // Prefer the Portal's own authoritative timestamp over a client-side
+        // one, so what Studio remembers matches what's actually stored.
+        publishedAt: result.product?.publishedAt ?? new Date().toISOString(),
+      };
+      setDraft(updatedDraft);
       setPendingCoverImage(null);
+
+      // Persist the just-published metadata back into Studio's own template
+      // storage immediately — this is the step that was missing entirely:
+      // without it, reopening this checklist shows blank cover image/
+      // description/price/status again next time, even though the Portal
+      // already has the correct values (see PublishingMetadata/draftToConfig).
+      try {
+        const saved = await api_saveTemplate({
+          templateId: updatedDraft.templateId,
+          ownerEmail,
+          name: updatedDraft.name,
+          category: updatedDraft.category ?? '',
+          configJson: draftToConfigJson(updatedDraft),
+        });
+        setDraft((d) => ({ ...d, templateId: saved.templateId }));
+      } catch (saveErr) {
+        // The Portal publish already succeeded — don't make this look like
+        // the publish itself failed. It does mean this checklist may show
+        // stale fields next time it's reopened until Save Template is
+        // clicked manually, so say so rather than silently swallowing it.
+        console.error('Failed to persist publish metadata to Studio', saveErr);
+        showToast('Published to Portal, but saving the updated details in Studio failed — click Save Template to retry.');
+        return;
+      }
+
       showToast(`Published to Portal ✓ (v${result.product?.version})`);
     } catch (e) {
       showToast('Publish failed — ' + (e instanceof Error ? e.message : 'unknown error'));
@@ -282,6 +317,26 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         showToast('Archive failed — ' + (result.error ?? 'unknown error'));
         return;
       }
+
+      // publishedAt is deliberately left untouched — it should keep
+      // reflecting the last real publish, not this archive action.
+      const updatedDraft: BuilderDraft = { ...draft, publishStatus: 'archived' };
+      setDraft(updatedDraft);
+
+      try {
+        await api_saveTemplate({
+          templateId: updatedDraft.templateId,
+          ownerEmail,
+          name: updatedDraft.name,
+          category: updatedDraft.category ?? '',
+          configJson: draftToConfigJson(updatedDraft),
+        });
+      } catch (saveErr) {
+        console.error('Failed to persist archive status to Studio', saveErr);
+        showToast('Unpublished, but saving the updated status in Studio failed — click Save Template to retry.');
+        return;
+      }
+
       showToast(`Unpublished ✓ (v${result.product?.version})`);
     } catch (e) {
       showToast('Archive failed — ' + (e instanceof Error ? e.message : 'unknown error'));
@@ -394,7 +449,26 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
           <div className="flex flex-col gap-5 p-4 sm:p-6">
             {/* Template name + brand color */}
             <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-card">
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-navy-400">Template Settings</p>
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-navy-400">Template Settings</p>
+                {/* Read-only — reflects PublishingMetadata.status/publishedAt, restored on load (see TemplatesScreen's handleEdit) and set automatically by Publish/Unpublish, never edited directly here. */}
+                <span
+                  className={cn(
+                    'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+                    draft.publishStatus === 'published'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : draft.publishStatus === 'archived'
+                        ? 'bg-red-50 text-red-500'
+                        : 'bg-navy-100 text-navy-500'
+                  )}
+                >
+                  {draft.publishStatus === 'published'
+                    ? `Published${draft.publishedAt ? ` · ${new Date(draft.publishedAt).toLocaleDateString()}` : ''}`
+                    : draft.publishStatus === 'archived'
+                      ? 'Unpublished'
+                      : 'Draft'}
+                </span>
+              </div>
               <div className="flex flex-col gap-3">
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">Template Name *</label>

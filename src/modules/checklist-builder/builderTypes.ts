@@ -74,6 +74,19 @@ export interface BuilderDraft {
   price?: number;
   /** Set once Commerce creates a real Stripe Price object for this Workspace — no authoring UI for this yet, entered manually when it exists. */
   stripePriceId?: string;
+  /** No currency picker UI yet — always 'usd' today, but persisted explicitly rather than assumed, so it round-trips correctly once a picker exists. */
+  currency?: string;
+  /**
+   * Whether this checklist has ever been published to the Portal, and its
+   * current state there — restored from PublishingMetadata.status on load
+   * (see TemplatesScreen's handleEdit) and updated locally right after a
+   * successful publish/archive (see TemplateBuilderScreen's handlePublish/
+   * handleArchiveConfirm), so reopening the checklist shows the real state
+   * without a fresh Portal round-trip.
+   */
+  publishStatus?: 'draft' | 'published' | 'archived';
+  /** ISO timestamp of the most recent successful publish — see PublishingMetadata.publishedAt. */
+  publishedAt?: string | null;
   sections: DraftSection[];
 }
 
