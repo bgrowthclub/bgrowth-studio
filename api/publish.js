@@ -44,8 +44,18 @@ export default async function handler(req, res) {
     });
   }
 
+  // TEMP DIAGNOSTIC — env validation now confirmed fine (VERCEL_ENV correct,
+  // both vars defined). Instrumenting the rest of the request to determine
+  // whether the failure happens before the outbound fetch, during it, or
+  // after receiving Portal's response. portalUrl itself is safe to log —
+  // it's a destination URL, not a credential; the secret's value is never
+  // logged, only attached to the outbound request header.
+  console.log('[api/publish] target publishing URL:', portalUrl);
+
+  let response;
   try {
-    const response = await fetch(portalUrl, {
+    console.log('[api/publish] attempting outbound fetch to Portal...');
+    response = await fetch(portalUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -53,7 +63,21 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(req.body ?? {}),
     });
+    console.log('[api/publish] fetch completed — HTTP status:', response.status, response.statusText);
+    console.log('[api/publish] response headers:', Object.fromEntries(response.headers.entries()));
+  } catch (err) {
+    // Thrown by fetch() itself — the request never got a response at all
+    // (DNS failure, connection refused/reset, TLS error, timeout before any
+    // bytes came back). Distinct from a request that completed but Portal
+    // returned an error status or a bad body (handled below).
+    console.error('[api/publish] outbound fetch threw before any response was received');
+    console.error('[api/publish] error.name:', err?.name);
+    console.error('[api/publish] error.message:', err?.message);
+    console.error('[api/publish] error.stack:', err?.stack);
+    return res.status(502).json({ ok: false, error: `Could not reach the Publishing Engine: ${String(err)}` });
+  }
 
+  try {
     // Portal's own handler always returns JSON, but a platform-level failure
     // upstream of that handler (a timeout, a crash before any response body
     // is written) returns Vercel's own plain-text/HTML error page instead —
@@ -63,6 +87,8 @@ export default async function handler(req, res) {
     // Validating and re-wrapping here means Studio's UI never has to guess
     // whether a response is actually parseable.
     const text = await response.text();
+    console.log('[api/publish] raw response body (first 500 chars):', text.slice(0, 500));
+
     let json;
     try {
       json = JSON.parse(text);
@@ -76,6 +102,12 @@ export default async function handler(req, res) {
 
     res.status(response.status).json(json);
   } catch (err) {
+    // Thrown while reading/parsing the response we DID receive — i.e. after
+    // the outbound fetch already succeeded and Portal already answered.
+    console.error('[api/publish] error while reading/handling Portal\'s response');
+    console.error('[api/publish] error.name:', err?.name);
+    console.error('[api/publish] error.message:', err?.message);
+    console.error('[api/publish] error.stack:', err?.stack);
     res.status(500).json({ ok: false, error: String(err) });
   }
 }
