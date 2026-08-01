@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database } from 'lucide-react';
+import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone } from 'lucide-react';
 import type { StudioTool } from './types';
 
 const TOOLS: StudioTool[] = [
@@ -59,6 +59,14 @@ const TOOLS: StudioTool[] = [
     color: '#0EA5A0',
     status: 'live',
   },
+  {
+    id: 'content-engine',
+    name: 'Content Engine',
+    description: 'Generate on-brand social content for published Workspaces — captions, carousels, scripts and more — and manage them from draft to published.',
+    icon: 'content-engine',
+    color: '#DB2777',
+    status: 'live',
+  },
 ];
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -70,6 +78,7 @@ const ICONS: Record<string, React.ReactNode> = {
   invoice: <Receipt className="h-7 w-7" />,
   'product-engine': <Database className="h-7 w-7" />,
 'knowledge-engine': <BookOpen className="h-7 w-7" />,
+  'content-engine': <Megaphone className="h-7 w-7" />,
 };
 
 interface StudioHomeProps {

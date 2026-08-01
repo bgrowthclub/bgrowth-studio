@@ -1,0 +1,66 @@
+import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
+import { requireAdmin } from '../_lib/requireAdmin.js';
+
+function slugifyForUtm(value) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+/**
+ * campaigns is the Content Engine's own record of "a marketing push for one
+ * published product" — product_id/product_slug are a snapshot taken at
+ * creation time (see the migration's note on why there's no cross-schema FK
+ * into portal.products). GET lists every campaign with its strategy name
+ * joined in; POST creates one against an already-published product the
+ * caller looked up client-side from the public portal.catalog_index.
+ */
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(401).json({ error: 'Unauthorized' });
+
+  const supabase = getSupabaseAdmin();
+
+  if (req.method === 'GET') {
+    const { data, error } = await supabase
+      .schema('content_engine')
+      .from('campaigns')
+      .select('*, content_strategies(id, key, name), content_items(id, status)')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ campaigns: data });
+  }
+
+  if (req.method === 'POST') {
+    const { productId, productSlug, strategyId, name, goal, utmCampaign } = req.body ?? {};
+    if (!productId || !productSlug || !strategyId || !name) {
+      return res.status(400).json({ error: 'productId, productSlug, strategyId, and name are required.' });
+    }
+
+    const { data, error } = await supabase
+      .schema('content_engine')
+      .from('campaigns')
+      .insert({
+        product_id: productId,
+        product_slug: productSlug,
+        strategy_id: strategyId,
+        name,
+        goal: goal || null,
+        utm_campaign: utmCampaign || slugifyForUtm(name),
+        created_by: admin.id,
+      })
+      .select('*, content_strategies(id, key, name)')
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(201).json({ campaign: data });
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' });
+}

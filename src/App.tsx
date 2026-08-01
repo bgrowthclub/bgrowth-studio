@@ -9,6 +9,7 @@ import { CalculatorEngine } from './modules/calculator-engine/CalculatorEngine';
 import { AIBuilder } from './modules/ai-builder/AIBuilder';
 import { ProductEngine } from './modules/product-engine/ProductEngine';
 import { KnowledgeEngine } from './modules/knowledge-engine/KnowledgeEngine';
+import { ContentEngine } from './modules/content-engine/ContentEngine';
 import { ProductHeader } from './components/ProductHeader';
 import { Sidebar } from './components/Sidebar';
 import { useAuth } from './auth/AuthContext';
@@ -28,7 +29,7 @@ import { api_getTemplate } from './modules/checklist-builder/api';
 import { decompressString } from './lib/compress';
 import type { ChecklistConfig, ChecklistData } from './engine/types';
 
-type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine';
+type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine';
 
 const TOOL_NAMES: Record<string, string> = {
   checklist: 'Checklist Builder',
@@ -37,6 +38,7 @@ const TOOL_NAMES: Record<string, string> = {
   'ai-builder': 'AI Product Builder',
   'product-engine': 'Product Engine',
   'knowledge-engine': 'Knowledge Engine',
+  'content-engine': 'Content Engine',
 };
 
 // -----------------------------------------------------------------------
@@ -228,7 +230,7 @@ export function App() {
   const [activeTool, setActiveTool] = useState<ActiveTool>(() => {
     if (window.location.pathname === '/studio/knowledge') return 'knowledge-engine';
     const tool = params.get('tool');
-    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine') return tool as ActiveTool;
+    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine') return tool as ActiveTool;
     return null;
   });
 
@@ -282,6 +284,12 @@ export function App() {
         onHome={() => setActiveTool(null)}
         onSelectTool={(tool) => setActiveTool(tool as ActiveTool)}
       />
+    </RequireAdmin>
+  );
+
+  if (activeTool === 'content-engine') return (
+    <RequireAdmin>
+      <ContentEngine ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
     </RequireAdmin>
   );
 
