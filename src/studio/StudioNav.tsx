@@ -1,4 +1,5 @@
-import { ChevronLeft, LayoutGrid } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, LogOut } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
 
 interface StudioNavProps {
   activeTool?: string;
@@ -8,6 +9,8 @@ interface StudioNavProps {
 }
 
 export function StudioNav({ activeTool, toolName, ownerEmail, onHome }: StudioNavProps) {
+  const { signOut } = useAuth();
+
   return (
     <header className="no-print flex h-14 shrink-0 items-center gap-3 border-b border-navy-100 bg-white px-4 sm:px-6">
       {/* Logo */}
@@ -43,6 +46,15 @@ export function StudioNav({ activeTool, toolName, ownerEmail, onHome }: StudioNa
       )}
 
       <span className="ml-auto text-xs text-navy-400 hidden sm:block">{ownerEmail}</span>
+      <button
+        type="button"
+        onClick={() => void signOut()}
+        title="Sign out"
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-navy-400 hover:bg-navy-50 hover:text-navy-700"
+      >
+        <LogOut className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Sign out</span>
+      </button>
     </header>
   );
 }
