@@ -1,5 +1,4 @@
 import { GoogleGenAI } from '@google/genai';
-import { requireAdmin } from './_lib/requireAdmin.js';
 
 function generateMockBlueprint(prompt, productType) {
   const type = productType || (prompt.toLowerCase().includes('checklist') ? 'Checklist' : 
@@ -68,9 +67,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  const admin = await requireAdmin(req);
-  if (!admin) return res.status(401).json({ error: 'Unauthorized' });
 
   const { prompt, productType } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });

@@ -1,5 +1,4 @@
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
-import { requireAdmin } from '../_lib/requireAdmin.js';
 
 function slugifyForUtm(value) {
   return value
@@ -22,9 +21,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
-
-  const admin = await requireAdmin(req);
-  if (!admin) return res.status(401).json({ error: 'Unauthorized' });
 
   const supabase = getSupabaseAdmin();
 
@@ -54,7 +50,6 @@ export default async function handler(req, res) {
         name,
         goal: goal || null,
         utm_campaign: utmCampaign || slugifyForUtm(name),
-        created_by: admin.id,
       })
       .select('*, content_strategies(id, key, name)')
       .single();

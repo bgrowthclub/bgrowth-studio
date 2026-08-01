@@ -9,7 +9,6 @@ import AnalyticsView from './AnalyticsView';
 import SettingsView from './SettingsView';
 import { DigitalProduct, AICreditCost } from './types';
 import { gasGetAIProducts, gasSaveAIProduct, gasDeleteAIProduct } from '../../lib/studioSync';
-import { apiFetch } from '../../lib/apiClient';
 
 const SEEDED_PRODUCTS: DigitalProduct[] = [];
 
@@ -112,7 +111,7 @@ export function AIBuilder({ ownerEmail }: AIBuilderProps) {
     setCredits(prev => Math.max(0, prev - generationCost));
 
     try {
-      const response = await apiFetch('/api/generate', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, productType, blueprint }),
@@ -157,7 +156,7 @@ export function AIBuilder({ ownerEmail }: AIBuilderProps) {
 
   const handleImproveProduct = async (product: DigitalProduct, instruction: string) => {
     try {
-      const response = await apiFetch('/api/improve', {
+      const response = await fetch('/api/improve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product, instruction }),

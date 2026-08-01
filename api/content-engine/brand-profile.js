@@ -1,5 +1,4 @@
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
-import { requireAdmin } from '../_lib/requireAdmin.js';
 
 /**
  * Reads/updates the single content_engine.brand_profile row (id is pinned
@@ -11,9 +10,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
-
-  const admin = await requireAdmin(req);
-  if (!admin) return res.status(401).json({ error: 'Unauthorized' });
 
   const supabase = getSupabaseAdmin();
 
@@ -55,7 +51,6 @@ export default async function handler(req, res) {
         target_audience,
         social_content_rules,
         updated_at: new Date().toISOString(),
-        updated_by: admin.id,
       })
       .eq('id', 1)
       .select('*')

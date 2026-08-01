@@ -12,8 +12,6 @@ import { KnowledgeEngine } from './modules/knowledge-engine/KnowledgeEngine';
 import { ContentEngine } from './modules/content-engine/ContentEngine';
 import { ProductHeader } from './components/ProductHeader';
 import { Sidebar } from './components/Sidebar';
-import { useAuth } from './auth/AuthContext';
-import { RequireAdmin } from './auth/RequireAdmin';
 import { WorkflowAccordion } from './engine/components/WorkflowAccordion';
 import { Footer } from './components/Footer';
 import { PrintableSummary } from './engine/components/PrintableSummary';
@@ -215,13 +213,7 @@ function PublicCalcFill({ calcId }: { calcId: string }) {
 }
 
 // -----------------------------------------------------------------------
-export function App() {
-  const { session } = useAuth();
-  // Studio-mode identity comes from the authenticated admin's session only —
-  // never from a query param. Public fill routes below (template/calc/planner)
-  // are unauthenticated by design and never read this value.
-  const ownerEmail = session?.user?.email ?? '';
-
+export function App({ ownerEmail }: { ownerEmail: string }) {
   const params = new URLSearchParams(window.location.search);
   const templateId = params.get('template');
   const calcId = params.get('calc');
@@ -263,67 +255,57 @@ export function App() {
 
   if (plannerId) return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} className="font-sans">
-      <PlannerEngine ownerEmail={params.get('owner') ?? ''} initialPlannerId={plannerId} />
+      <PlannerEngine ownerEmail={params.get('owner') || ownerEmail} initialPlannerId={plannerId} />
     </div>
   );
 
   if (activeTool === 'product-engine') return (
-    <RequireAdmin>
-      <ProductEngine
-        ownerEmail={ownerEmail}
-        onHome={() => setActiveTool(null)}
-        onSelectTool={(tool) => setActiveTool(tool as ActiveTool)}
-      />
-    </RequireAdmin>
+    <ProductEngine
+      ownerEmail={ownerEmail}
+      onHome={() => setActiveTool(null)}
+      onSelectTool={(tool) => setActiveTool(tool as ActiveTool)}
+    />
   );
 
   if (activeTool === 'knowledge-engine') return (
-    <RequireAdmin>
-      <KnowledgeEngine
-        ownerEmail={ownerEmail}
-        onHome={() => setActiveTool(null)}
-        onSelectTool={(tool) => setActiveTool(tool as ActiveTool)}
-      />
-    </RequireAdmin>
+    <KnowledgeEngine
+      ownerEmail={ownerEmail}
+      onHome={() => setActiveTool(null)}
+      onSelectTool={(tool) => setActiveTool(tool as ActiveTool)}
+    />
   );
 
   if (activeTool === 'content-engine') return (
-    <RequireAdmin>
-      <ContentEngine ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
-    </RequireAdmin>
+    <ContentEngine ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
   );
 
   if (activeTool) return (
-    <RequireAdmin>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} className="font-sans bg-[#f4f6fb]">
-        <StudioNav
-          activeTool={activeTool}
-          toolName={TOOL_NAMES[activeTool]}
-          ownerEmail={ownerEmail}
-          onHome={() => setActiveTool(null)}
-        />
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {activeTool === 'checklist' && <ChecklistBuilderApp ownerEmail={ownerEmail} embedded />}
-          {activeTool === 'planner' && <PlannerEngine ownerEmail={ownerEmail} />}
-          {activeTool === 'calculator' && <CalculatorEngine ownerEmail={ownerEmail} />}
-          {activeTool === 'ai-builder' && <AIBuilder ownerEmail={ownerEmail} />}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} className="font-sans bg-[#f4f6fb]">
+      <StudioNav
+        activeTool={activeTool}
+        toolName={TOOL_NAMES[activeTool]}
+        ownerEmail={ownerEmail}
+        onHome={() => setActiveTool(null)}
+      />
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {activeTool === 'checklist' && <ChecklistBuilderApp ownerEmail={ownerEmail} embedded />}
+        {activeTool === 'planner' && <PlannerEngine ownerEmail={ownerEmail} />}
+        {activeTool === 'calculator' && <CalculatorEngine ownerEmail={ownerEmail} />}
+        {activeTool === 'ai-builder' && <AIBuilder ownerEmail={ownerEmail} />}
       </div>
-    </RequireAdmin>
+    </div>
   );
 
   return (
-    <RequireAdmin>
-      <div className="font-sans bg-[#f4f6fb] min-h-screen">
-        <StudioNav
-          ownerEmail={ownerEmail}
-          onHome={() => setActiveTool(null)}
-        />
-        <StudioHome
-          ownerEmail={ownerEmail}
-          onSelect={(tool) => setActiveTool(tool as ActiveTool)}
-        />
-      </div>
-    </RequireAdmin>
+    <div className="font-sans bg-[#f4f6fb] min-h-screen">
+      <StudioNav
+        ownerEmail={ownerEmail}
+        onHome={() => setActiveTool(null)}
+      />
+      <StudioHome
+        ownerEmail={ownerEmail}
+        onSelect={(tool) => setActiveTool(tool as ActiveTool)}
+      />
+    </div>
   );
 }

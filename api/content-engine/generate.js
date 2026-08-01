@@ -1,5 +1,4 @@
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
-import { requireAdmin } from '../_lib/requireAdmin.js';
 import { runGeneration } from '../_lib/ai/runGeneration.js';
 import { buildGenerationPrompt } from '../_lib/contentEngine/promptBuilder.js';
 import { CONTENT_SPECS, PLATFORM_LABELS } from '../_lib/contentEngine/contentSpecs.js';
@@ -23,9 +22,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const admin = await requireAdmin(req);
-  if (!admin) return res.status(401).json({ error: 'Unauthorized' });
 
   const { campaignId, platform, contentType } = req.body ?? {};
   if (!campaignId || !platform || !contentType) {
@@ -92,7 +88,6 @@ export default async function handler(req, res) {
       body: generation.output,
       generated_by_provider: generation.provider,
       generated_by_model: generation.model,
-      created_by: admin.id,
     })
     .select('*')
     .single();
