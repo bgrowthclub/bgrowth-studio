@@ -2,6 +2,18 @@ import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 import { checkForDuplicateGrant, deriveGrantStatus } from './_lib/accessGrants.js';
 
 /**
+ * Diagnostic-only: logs which stage failed, server-side, without ever
+ * including secrets, headers, request bodies, or member data — see the
+ * Access Management production error audit. Never sent to the browser.
+ */
+function logDiagnostic(stage, err) {
+  console.error(
+    `[access-management] stage=${stage} name=${err?.name ?? 'Error'} message=${err?.message ?? String(err)}`,
+    err?.stack ?? ''
+  );
+}
+
+/**
  * Access Management — consolidated into one Serverless Function (Vercel
  * Hobby plan's 12-function limit; see the Access Management Serverless
  * Function audit). Was two files (members.js, grants.js); routed here by
@@ -46,17 +58,35 @@ async function handleMembers(req, res, supabase) {
     return res.status(400).json({ error: 'email must be at least 3 characters.' });
   }
 
-  const { data: candidates, error: candidatesError } = await supabase
-    .schema('portal')
-    .from('users')
-    .select('id, email, full_name, has_used_trial')
-    .ilike('email', `%${email}%`)
-    .limit(10);
-  if (candidatesError) return res.status(500).json({ error: candidatesError.message });
+  let candidates;
+  try {
+    const { data, error: candidatesError } = await supabase
+      .schema('portal')
+      .from('users')
+      .select('id, email, full_name, has_used_trial')
+      .ilike('email', `%${email}%`)
+      .limit(10);
+    if (candidatesError) {
+      logDiagnostic('members:portal_users_query', candidatesError);
+      return res.status(500).json({ error: candidatesError.message });
+    }
+    candidates = data;
+  } catch (err) {
+    logDiagnostic('members:portal_users_query', err);
+    return res.status(500).json({ error: 'Member search failed.' });
+  }
 
   const members = [];
   for (const candidate of candidates ?? []) {
-    const { data: authResult, error: authError } = await supabase.auth.admin.getUserById(candidate.id);
+    let authResult;
+    let authError;
+    try {
+      ({ data: authResult, error: authError } = await supabase.auth.admin.getUserById(candidate.id));
+    } catch (err) {
+      logDiagnostic('members:auth_admin_getUserById', err);
+      continue; // same "skip this candidate" behavior as a returned authError below — never guess.
+    }
+    if (authError) logDiagnostic('members:auth_admin_getUserById', authError);
     if (authError || !authResult?.user) continue; // stale portal.users row with no matching auth.users — skip, never guess.
     members.push({
       id: authResult.user.id,
@@ -229,7 +259,19 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'resource must be "members" or "grants".' });
   }
 
-  const supabase = getSupabaseAdmin();
-  if (resource === 'members') return handleMembers(req, res, supabase);
-  return handleGrants(req, res, supabase);
+  let supabase;
+  try {
+    supabase = getSupabaseAdmin();
+  } catch (err) {
+    logDiagnostic('client_init', err);
+    return res.status(500).json({ error: 'Server configuration error.' });
+  }
+
+  try {
+    if (resource === 'members') return await handleMembers(req, res, supabase);
+    return await handleGrants(req, res, supabase);
+  } catch (err) {
+    logDiagnostic(`${resource}:unhandled`, err);
+    return res.status(500).json({ error: 'Unexpected server error.' });
+  }
 }
