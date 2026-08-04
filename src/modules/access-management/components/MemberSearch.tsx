@@ -10,7 +10,7 @@ interface MemberSearchProps {
 /**
  * The Access Management landing screen — search by email only (per the
  * audited plan: authoritative auth.users email, resolved server-side by
- * /api/access-management/members, never a client-side dump of all users).
+ * /api/access-management?resource=members, never a client-side dump of all users).
  */
 export function MemberSearch({ onSelect }: MemberSearchProps) {
   const [query, setQuery] = useState('');

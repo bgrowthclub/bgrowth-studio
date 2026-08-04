@@ -177,7 +177,7 @@ export default function CreatePage({ onGenerate, isGenerating, recentProducts, o
       setBlueprintError(null);
       const safePrompt = prompt.length > PROMPT_MAX_CHARS ? prompt.slice(0, PROMPT_MAX_CHARS) : prompt;
 
-      const response = await fetch('/api/generate-blueprint', {
+      const response = await fetch('/api/ai-builder?action=generate-blueprint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: safePrompt, productType: selectedType })

@@ -111,7 +111,7 @@ export function AIBuilder({ ownerEmail }: AIBuilderProps) {
     setCredits(prev => Math.max(0, prev - generationCost));
 
     try {
-      const response = await fetch('/api/generate', {
+      const response = await fetch('/api/ai-builder?action=generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, productType, blueprint }),
@@ -156,7 +156,7 @@ export function AIBuilder({ ownerEmail }: AIBuilderProps) {
 
   const handleImproveProduct = async (product: DigitalProduct, instruction: string) => {
     try {
-      const response = await fetch('/api/improve', {
+      const response = await fetch('/api/ai-builder?action=improve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product, instruction }),

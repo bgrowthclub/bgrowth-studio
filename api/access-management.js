@@ -1,33 +1,87 @@
-import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
-import { checkForDuplicateGrant, deriveGrantStatus } from '../_lib/accessGrants.js';
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
+import { checkForDuplicateGrant, deriveGrantStatus } from './_lib/accessGrants.js';
 
 /**
- * Access Grant management — GET lists a member's grants (with derived
- * status), POST creates one, PATCH revokes one.
- *
- * Reuses portal.access_grants exactly as designed (see
- * bgrowth-portal/supabase/migrations/0021_access_grants.sql) — no new
- * table, no schema change, no touching has_workspace_access(), licenses,
- * trial logic, or Stripe.
+ * Access Management — consolidated into one Serverless Function (Vercel
+ * Hobby plan's 12-function limit; see the Access Management Serverless
+ * Function audit). Was two files (members.js, grants.js); routed here by
+ * `?resource=members` vs `?resource=grants`, with the exact same
+ * method-based dispatch grants.js already had (GET/POST/PATCH) preserved
+ * verbatim underneath. No behavior change — same queries, same response
+ * shapes, same duplicate-protection rules, same Phase 1 no-auth posture.
  *
  * PHASE 1 — TEMPORARY, NO AUTH: this endpoint has no requireAdmin() gate.
  * Studio has no per-user authentication today (see the Access Management
  * Phase 1 audit — 0022_studio_admins.sql is prepared but not applied). The
  * only protection right now is whatever restricts who can reach this
- * deployment at all — anyone who can reach it can create or revoke real
- * Workspace access. Re-add `const admin = await requireAdmin(req); if
- * (!admin) return res.status(401)...` here, and restore `granted_by:
- * admin.email` below, once Studio-wide auth is activated. Do not expose
- * this endpoint more broadly until then.
+ * deployment at all — anyone who can reach it can search members and
+ * create/revoke real Workspace access. Re-add `const admin = await
+ * requireAdmin(req); if (!admin) return res.status(401)...` here, and
+ * restore `granted_by: admin.email` in the grants/POST branch, once
+ * Studio-wide auth is activated. Do not expose this endpoint more broadly
+ * until then.
  */
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const supabase = getSupabaseAdmin();
+/**
+ * Member search — GET ?resource=members&email=...
+ *
+ * Two-step lookup, per the audited plan:
+ *  1. portal.users.email (a plain, indexed column) is searched first purely
+ *     as a fast candidate index — it's a signup-time snapshot, not
+ *     authoritative (see bgrowth-portal's own Access Grant audit).
+ *  2. Each candidate's authoritative record is confirmed via
+ *     supabase.auth.admin.getUserById() — the real GoTrue Admin API,
+ *     always current. This is what the response actually returns; a stale
+ *     portal.users.email would never reach the client.
+ *
+ * Response is deliberately narrow: id, email, full_name, has_used_trial,
+ * created_at, last_sign_in_at. Never password hashes, MFA factors,
+ * identities, or any other auth.users field.
+ */
+async function handleMembers(req, res, supabase) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  const email = (req.query.email ?? '').trim();
+  if (email.length < 3) {
+    return res.status(400).json({ error: 'email must be at least 3 characters.' });
+  }
+
+  const { data: candidates, error: candidatesError } = await supabase
+    .schema('portal')
+    .from('users')
+    .select('id, email, full_name, has_used_trial')
+    .ilike('email', `%${email}%`)
+    .limit(10);
+  if (candidatesError) return res.status(500).json({ error: candidatesError.message });
+
+  const members = [];
+  for (const candidate of candidates ?? []) {
+    const { data: authResult, error: authError } = await supabase.auth.admin.getUserById(candidate.id);
+    if (authError || !authResult?.user) continue; // stale portal.users row with no matching auth.users — skip, never guess.
+    members.push({
+      id: authResult.user.id,
+      email: authResult.user.email, // authoritative — always the auth.users value, never the portal.users snapshot.
+      fullName: candidate.full_name,
+      hasUsedTrial: candidate.has_used_trial,
+      createdAt: authResult.user.created_at,
+      lastSignInAt: authResult.user.last_sign_in_at ?? null,
+    });
+  }
+
+  return res.json({ members });
+}
+
+/**
+ * Access Grant management — GET ?resource=grants&userId=... lists a
+ * member's grants (with derived status), POST creates one, PATCH revokes
+ * one.
+ *
+ * Reuses portal.access_grants exactly as designed (see
+ * bgrowth-portal/supabase/migrations/0021_access_grants.sql) — no new
+ * table, no schema change, no touching has_workspace_access(), licenses,
+ * trial logic, or Stripe.
+ */
+async function handleGrants(req, res, supabase) {
   if (req.method === 'GET') {
     const userId = req.query.userId;
     if (!userId) return res.status(400).json({ error: 'userId is required.' });
@@ -162,4 +216,20 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const resource = req.query.resource;
+  if (resource !== 'members' && resource !== 'grants') {
+    return res.status(400).json({ error: 'resource must be "members" or "grants".' });
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (resource === 'members') return handleMembers(req, res, supabase);
+  return handleGrants(req, res, supabase);
 }

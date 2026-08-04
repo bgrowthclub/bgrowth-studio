@@ -24,7 +24,10 @@ async function gasGet<T>(params: Record<string, string>): Promise<T> {
 }
 
 async function gasPost<T>(params: Record<string, string>): Promise<T> {
-  const endpoint = IS_DEV ? DEV_URL : '/api/gas-proxy-post';
+  // Served by the same consolidated api/gas-proxy.js as gasGet above (see
+  // the Serverless Function consolidation audit) — method alone (POST vs GET)
+  // now distinguishes the two, no separate path needed in production.
+  const endpoint = IS_DEV ? DEV_URL : '/api/gas-proxy';
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

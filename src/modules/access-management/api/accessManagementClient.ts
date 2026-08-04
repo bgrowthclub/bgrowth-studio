@@ -16,13 +16,13 @@ async function parseOrThrow<T>(response: Response): Promise<T> {
  * ready to be reconnected alongside requireAdmin() on the server side.
  */
 export async function searchMembers(email: string): Promise<MemberSummary[]> {
-  const res = await fetch(`/api/access-management/members?email=${encodeURIComponent(email)}`);
+  const res = await fetch(`/api/access-management?resource=members&email=${encodeURIComponent(email)}`);
   const { members } = await parseOrThrow<{ members: MemberSummary[] }>(res);
   return members;
 }
 
 export async function fetchGrants(userId: string): Promise<AccessGrant[]> {
-  const res = await fetch(`/api/access-management/grants?userId=${encodeURIComponent(userId)}`);
+  const res = await fetch(`/api/access-management?resource=grants&userId=${encodeURIComponent(userId)}`);
   const { grants } = await parseOrThrow<{ grants: AccessGrant[] }>(res);
   return grants;
 }
@@ -37,7 +37,7 @@ export async function fetchGrants(userId: string): Promise<AccessGrant[]> {
 export async function createGrant(
   input: CreateGrantInput & { confirmWarning?: boolean },
 ): Promise<{ requiresConfirmation: true; warning: { code: string; message: string } } | { requiresConfirmation?: false; grant: AccessGrant }> {
-  const res = await fetch('/api/access-management/grants', {
+  const res = await fetch('/api/access-management?resource=grants', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -46,7 +46,7 @@ export async function createGrant(
 }
 
 export async function revokeGrant(id: string): Promise<AccessGrant> {
-  const res = await fetch('/api/access-management/grants', {
+  const res = await fetch('/api/access-management?resource=grants', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, action: 'revoke' }),

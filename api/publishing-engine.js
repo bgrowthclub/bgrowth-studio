@@ -1,25 +1,22 @@
-// Server-side proxy to the BGrowth Publishing Engine (lives in bgrowth-portal).
+// Consolidated proxy to the BGrowth Publishing Engine (lives in
+// bgrowth-portal) — Vercel Hobby plan's 12-function limit; see the
+// Serverless Function audit. Was two files (publish.js, archive.js);
+// merged into one, routed by ?action=publish (default) / ?action=archive.
 // Studio's frontend never holds PORTAL_PUBLISHING_ENGINE_SECRET — it calls
 // this function, which attaches the secret server-side, exactly like the
-// existing GAS proxy (api/gas-proxy-post.js) never exposes GAS internals to
-// the browser either.
+// GAS proxy (api/gas-proxy.js) never exposes GAS internals to the browser
+// either. Each branch's request/response/error handling is preserved
+// verbatim from its original file — no behavior change.
 
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '20mb', // cover images arrive as base64
+      sizeLimit: '20mb', // cover images arrive as base64 (publish only, but applies to both — harmless for archive's smaller body)
     },
   },
 };
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
-
+async function handlePublish(req, res) {
   const portalUrl = process.env.PORTAL_PUBLISHING_ENGINE_URL;
   const secret = process.env.PORTAL_PUBLISHING_ENGINE_SECRET;
 
@@ -28,7 +25,7 @@ export default async function handler(req, res) {
   // itself actually sees: which deployment target it's executing under
   // (VERCEL_ENV/VERCEL_URL), and whether each var is present/what length
   // it resolved to — never the values themselves.
-  console.log('[api/publish] env diagnostic', {
+  console.log('[api/publishing-engine:publish] env diagnostic', {
     VERCEL_ENV: process.env.VERCEL_ENV,
     VERCEL_URL: process.env.VERCEL_URL,
     portalUrlDefined: process.env.PORTAL_PUBLISHING_ENGINE_URL !== undefined,
@@ -46,7 +43,7 @@ export default async function handler(req, res) {
   // var technically "exists" in the Vercel dashboard. This logs the actual
   // boolean the guard evaluates, so a mismatch against the "defined" log
   // above is directly visible instead of inferred.
-  console.log('[api/publish] guard check', {
+  console.log('[api/publishing-engine:publish] guard check', {
     portalUrlTruthy: Boolean(portalUrl),
     secretTruthy: Boolean(secret),
     portalUrlIsEmptyString: portalUrl === '',
@@ -61,7 +58,7 @@ export default async function handler(req, res) {
     // check": every subsequent console.log in this function is unreachable
     // once this return executes. This isn't a crash or a truncated log —
     // it's this exact, ordinary early return.
-    console.log('[api/publish] EARLY RETURN — guard triggered, responding "not configured" now');
+    console.log('[api/publishing-engine:publish] EARLY RETURN — guard triggered, responding "not configured" now');
     return res.status(500).json({
       ok: false,
       error: 'PORTAL_PUBLISHING_ENGINE_URL / PORTAL_PUBLISHING_ENGINE_SECRET are not configured on Studio.',
@@ -74,11 +71,11 @@ export default async function handler(req, res) {
   // after receiving Portal's response. portalUrl itself is safe to log —
   // it's a destination URL, not a credential; the secret's value is never
   // logged, only attached to the outbound request header.
-  console.log('[api/publish] target publishing URL:', portalUrl);
+  console.log('[api/publishing-engine:publish] target publishing URL:', portalUrl);
 
   let response;
   try {
-    console.log('[api/publish] attempting outbound fetch to Portal...');
+    console.log('[api/publishing-engine:publish] attempting outbound fetch to Portal...');
     response = await fetch(portalUrl, {
       method: 'POST',
       headers: {
@@ -87,17 +84,17 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(req.body ?? {}),
     });
-    console.log('[api/publish] fetch completed — HTTP status:', response.status, response.statusText);
-    console.log('[api/publish] response headers:', Object.fromEntries(response.headers.entries()));
+    console.log('[api/publishing-engine:publish] fetch completed — HTTP status:', response.status, response.statusText);
+    console.log('[api/publishing-engine:publish] response headers:', Object.fromEntries(response.headers.entries()));
   } catch (err) {
     // Thrown by fetch() itself — the request never got a response at all
     // (DNS failure, connection refused/reset, TLS error, timeout before any
     // bytes came back). Distinct from a request that completed but Portal
     // returned an error status or a bad body (handled below).
-    console.error('[api/publish] outbound fetch threw before any response was received');
-    console.error('[api/publish] error.name:', err?.name);
-    console.error('[api/publish] error.message:', err?.message);
-    console.error('[api/publish] error.stack:', err?.stack);
+    console.error('[api/publishing-engine:publish] outbound fetch threw before any response was received');
+    console.error('[api/publishing-engine:publish] error.name:', err?.name);
+    console.error('[api/publishing-engine:publish] error.message:', err?.message);
+    console.error('[api/publishing-engine:publish] error.stack:', err?.stack);
     return res.status(502).json({ ok: false, error: `Could not reach the Publishing Engine: ${String(err)}` });
   }
 
@@ -111,13 +108,13 @@ export default async function handler(req, res) {
     // Validating and re-wrapping here means Studio's UI never has to guess
     // whether a response is actually parseable.
     const text = await response.text();
-    console.log('[api/publish] raw response body (first 500 chars):', text.slice(0, 500));
+    console.log('[api/publishing-engine:publish] raw response body (first 500 chars):', text.slice(0, 500));
 
     let json;
     try {
       json = JSON.parse(text);
     } catch {
-      console.error('[api/publish] Portal returned a non-JSON response:', text.slice(0, 500));
+      console.error('[api/publishing-engine:publish] Portal returned a non-JSON response:', text.slice(0, 500));
       return res.status(502).json({
         ok: false,
         error: "The Publishing Engine returned an unexpected response instead of JSON — check Portal's deployment logs.",
@@ -128,10 +125,72 @@ export default async function handler(req, res) {
   } catch (err) {
     // Thrown while reading/parsing the response we DID receive — i.e. after
     // the outbound fetch already succeeded and Portal already answered.
-    console.error('[api/publish] error while reading/handling Portal\'s response');
-    console.error('[api/publish] error.name:', err?.name);
-    console.error('[api/publish] error.message:', err?.message);
-    console.error('[api/publish] error.stack:', err?.stack);
+    console.error('[api/publishing-engine:publish] error while reading/handling Portal\'s response');
+    console.error('[api/publishing-engine:publish] error.name:', err?.name);
+    console.error('[api/publishing-engine:publish] error.message:', err?.message);
+    console.error('[api/publishing-engine:publish] error.stack:', err?.stack);
     res.status(500).json({ ok: false, error: String(err) });
   }
+}
+
+async function handleArchive(req, res) {
+  const publishUrl = process.env.PORTAL_PUBLISHING_ENGINE_URL;
+  const secret = process.env.PORTAL_PUBLISHING_ENGINE_SECRET;
+
+  if (!publishUrl || !secret) {
+    return res.status(500).json({
+      ok: false,
+      error: 'PORTAL_PUBLISHING_ENGINE_URL / PORTAL_PUBLISHING_ENGINE_SECRET are not configured on Studio.',
+    });
+  }
+
+  const archiveUrl = publishUrl.replace(/\/publish$/, '/archive');
+  if (archiveUrl === publishUrl) {
+    return res.status(500).json({
+      ok: false,
+      error: 'PORTAL_PUBLISHING_ENGINE_URL is not in the expected ".../publish" shape — cannot derive the archive endpoint URL.',
+    });
+  }
+
+  try {
+    const response = await fetch(archiveUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishing-engine-secret': secret,
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+
+    // Same "never blindly forward a non-JSON body" hardening as the publish branch.
+    const text = await response.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      console.error('[api/publishing-engine:archive] Portal returned a non-JSON response:', text.slice(0, 500));
+      return res.status(502).json({
+        ok: false,
+        error: "The Publishing Engine returned an unexpected response instead of JSON — check Portal's deployment logs.",
+      });
+    }
+
+    res.status(response.status).json(json);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
+
+  const action = req.query.action ?? 'publish';
+  if (action === 'archive') return handleArchive(req, res);
+  if (action === 'publish') return handlePublish(req, res);
+  return res.status(400).json({ ok: false, error: 'action must be "publish" or "archive".' });
 }

@@ -1,7 +1,7 @@
 /**
  * Studio-side client for the BGrowth Publishing Engine. Calls Studio's own
- * /api/publish serverless proxy (never the Portal directly, and never with
- * the shared secret in browser code) — see api/publish.js.
+ * /api/publishing-engine serverless proxy (never the Portal directly, and
+ * never with the shared secret in browser code) — see api/publishing-engine.js.
  */
 import type { ChecklistConfig } from '../engine/types';
 import type { StudioTrialUnit } from '../modules/checklist-builder/builderTypes';
@@ -63,7 +63,7 @@ export function slugifyProductName(name: string): string {
 
 export async function publishToPortal(input: PublishToPortalInput): Promise<PublishToPortalResult> {
   try {
-    const response = await fetch('/api/publish', {
+    const response = await fetch('/api/publishing-engine?action=publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -122,7 +122,7 @@ export interface ArchiveProductResult {
  */
 export async function archiveProduct(input: ArchiveProductInput): Promise<ArchiveProductResult> {
   try {
-    const response = await fetch('/api/archive', {
+    const response = await fetch('/api/publishing-engine?action=archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

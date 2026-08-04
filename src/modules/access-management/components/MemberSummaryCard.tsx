@@ -5,7 +5,7 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-/** Deliberately narrow — id/email/name/trial-used/dates only. Never renders anything from auth beyond what /api/access-management/members already chose to expose. */
+/** Deliberately narrow — id/email/name/trial-used/dates only. Never renders anything from auth beyond what /api/access-management?resource=members already chose to expose. */
 export function MemberSummaryCard({ member }: { member: MemberSummary }) {
   return (
     <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-card">

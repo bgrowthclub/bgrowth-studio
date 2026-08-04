@@ -3,8 +3,11 @@
  * Saves and loads all Studio data to/from Google Sheets via GAS proxy
  */
 
+// Both GET and POST are served by the same consolidated api/gas-proxy.js
+// (see the Serverless Function consolidation audit) — still two constants
+// since gasCall's method-based branching below reads cleanly either way.
 const GAS_PROXY_GET = '/api/gas-proxy';
-const GAS_PROXY_POST = '/api/gas-proxy-post';
+const GAS_PROXY_POST = '/api/gas-proxy';
 
 async function gasCall(action: string, params: Record<string, string> = {}, method: 'GET' | 'POST' = 'GET'): Promise<any> {
   const url = new URL(method === 'POST' ? GAS_PROXY_POST : GAS_PROXY_GET, window.location.origin);
