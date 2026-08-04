@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone } from 'lucide-react';
+import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound } from 'lucide-react';
 import type { StudioTool } from './types';
 
 const TOOLS: StudioTool[] = [
@@ -67,6 +67,14 @@ const TOOLS: StudioTool[] = [
     color: '#DB2777',
     status: 'live',
   },
+  {
+    id: 'access-management',
+    name: 'Access Management',
+    description: 'Search a member and grant or revoke lifetime or expiring Workspace access — all Workspaces or one specific Workspace.',
+    icon: 'access-management',
+    color: '#0F172A',
+    status: 'live',
+  },
 ];
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -79,6 +87,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'product-engine': <Database className="h-7 w-7" />,
 'knowledge-engine': <BookOpen className="h-7 w-7" />,
   'content-engine': <Megaphone className="h-7 w-7" />,
+  'access-management': <KeyRound className="h-7 w-7" />,
 };
 
 interface StudioHomeProps {

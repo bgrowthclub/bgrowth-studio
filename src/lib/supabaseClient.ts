@@ -20,12 +20,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Anon-key client, browser-side only — used for the admin login session and
 // for reading portal.catalog_index (already public-read RLS, the same data
-// Portal's own Browse/Home pages expose to anonymous visitors). Never used
-// to read/write anything under the content_engine schema except the
-// caller's own row in content_engine.admins (see RequireAdmin.tsx) — every
-// other content_engine read/write goes through a requireAdmin()-gated
-// /api/content-engine/* route using the service-role key, which never
-// reaches the browser.
+// Portal's own Browse/Home pages expose to anonymous visitors). Also used to
+// read the caller's own row in portal.studio_admins (see RequireAdmin.tsx) —
+// the RLS policy there only ever allows a session to see its own row, never
+// a listing of other admins. Every privileged read/write beyond that (e.g.
+// Access Management's member search and Access Grant creation) goes through
+// a requireAdmin()-gated /api/* route using the service-role key, which
+// never reaches the browser.
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.invalid',
   supabaseAnonKey || 'placeholder-anon-key',

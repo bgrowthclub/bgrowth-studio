@@ -14,7 +14,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 /**
  * Session state only — this does not decide who is an admin. That's
  * RequireAdmin's job (a separate, deliberately small check against
- * content_engine.admins). Mirrors bgrowth-portal's own AuthContext, the
+ * portal.studio_admins). Mirrors bgrowth-portal's own AuthContext, the
  * same Supabase Auth mechanics, just a different app.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {

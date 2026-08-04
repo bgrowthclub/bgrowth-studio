@@ -10,6 +10,7 @@ import { AIBuilder } from './modules/ai-builder/AIBuilder';
 import { ProductEngine } from './modules/product-engine/ProductEngine';
 import { KnowledgeEngine } from './modules/knowledge-engine/KnowledgeEngine';
 import { ContentEngine } from './modules/content-engine/ContentEngine';
+import { AccessManagement } from './modules/access-management/AccessManagement';
 import { ProductHeader } from './components/ProductHeader';
 import { Sidebar } from './components/Sidebar';
 import { WorkflowAccordion } from './engine/components/WorkflowAccordion';
@@ -27,7 +28,7 @@ import { api_getTemplate } from './modules/checklist-builder/api';
 import { decompressString } from './lib/compress';
 import type { ChecklistConfig, ChecklistData } from './engine/types';
 
-type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine';
+type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine' | 'access-management';
 
 const TOOL_NAMES: Record<string, string> = {
   checklist: 'Checklist Builder',
@@ -37,6 +38,7 @@ const TOOL_NAMES: Record<string, string> = {
   'product-engine': 'Product Engine',
   'knowledge-engine': 'Knowledge Engine',
   'content-engine': 'Content Engine',
+  'access-management': 'Access Management',
 };
 
 // -----------------------------------------------------------------------
@@ -222,7 +224,7 @@ export function App({ ownerEmail }: { ownerEmail: string }) {
   const [activeTool, setActiveTool] = useState<ActiveTool>(() => {
     if (window.location.pathname === '/studio/knowledge') return 'knowledge-engine';
     const tool = params.get('tool');
-    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine') return tool as ActiveTool;
+    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine' || tool === 'access-management') return tool as ActiveTool;
     return null;
   });
 
@@ -277,6 +279,16 @@ export function App({ ownerEmail }: { ownerEmail: string }) {
 
   if (activeTool === 'content-engine') return (
     <ContentEngine ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
+  );
+
+  // Phase 1: no Studio-wide authentication exists yet (see
+  // 0022_studio_admins.sql, prepared but not applied) — this renders
+  // unauthenticated, same as every other tool including Content Engine.
+  // Temporary: acceptable only while Studio stays private to Andreia/Bruno.
+  // Re-wrap in RequireAdmin once Studio-wide auth is activated (see the
+  // Access Management Phase 1 audit for the exact reconnection steps).
+  if (activeTool === 'access-management') return (
+    <AccessManagement onHome={() => setActiveTool(null)} />
   );
 
   if (activeTool) return (

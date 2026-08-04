@@ -1,12 +1,16 @@
 import { getSupabaseAdmin } from './supabaseAdmin.js';
 
 /**
- * The one gate every Studio server-side AI/data endpoint calls first —
- * both the new Content Engine routes and the pre-existing generate/improve/
- * generate-blueprint endpoints. Verifies the caller's Supabase session
- * (the exact `supabase.auth.getUser(accessToken)` call bgrowth-portal's own
+ * The one gate every Studio server-side privileged endpoint calls first —
+ * Access Management's own routes today, Content Engine's once it's wired in
+ * too. Verifies the caller's Supabase session (the exact
+ * `supabase.auth.getUser(accessToken)` call bgrowth-portal's own
  * api/checkout/create-session.ts already uses to verify a session
- * server-side), then checks content_engine.admins for that user id.
+ * server-side), then checks portal.studio_admins for that user id — the one
+ * Studio-wide admin allowlist (supabase/migrations/0022_studio_admins.sql,
+ * bgrowth-portal), independent of any single module. Not content_engine.admins:
+ * that schema was never actually applied to production (rolled back before
+ * Content Engine's admin gate was finished) and is not being recreated.
  *
  * Returns the authenticated admin user on success, or null on any failure
  * (missing/invalid token, valid session but not an admin) — callers always
@@ -25,8 +29,8 @@ export async function requireAdmin(req) {
   if (userError || !userResult.user) return null;
 
   const { data: adminRow, error: adminError } = await supabase
-    .schema('content_engine')
-    .from('admins')
+    .schema('portal')
+    .from('studio_admins')
     .select('user_id, email')
     .eq('user_id', userResult.user.id)
     .maybeSingle();

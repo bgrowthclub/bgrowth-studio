@@ -35,10 +35,12 @@ function NotAuthorizedScreen({ email, onSignOut }: { email: string | null; onSig
  * (?template=/?calc=/?planner=), which stay unauthenticated by design (see
  * App.tsx). Two checks, in order: (1) is there a real Supabase session at
  * all (AdminLoginPage otherwise), (2) does that session's user id have a
- * row in content_engine.admins (NotAuthorizedScreen otherwise). Being a
- * row in auth.users — which a Portal customer also is, since both apps
- * share one Supabase project — satisfies neither check by itself; only
- * step 2 actually grants Studio access.
+ * row in portal.studio_admins (NotAuthorizedScreen otherwise) — the one
+ * Studio-wide admin allowlist (supabase/migrations/0022_studio_admins.sql,
+ * bgrowth-portal), not a Content-Engine-owned table. Being a row in
+ * auth.users — which a Portal customer also is, since both apps share one
+ * Supabase project — satisfies neither check by itself; only step 2
+ * actually grants Studio access.
  */
 export function RequireAdmin({ children }: { children: ReactNode }) {
   const { session, isLoading, signOut } = useAuth();
@@ -54,8 +56,8 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
     let cancelled = false;
     setIsCheckingAdmin(true);
     supabase
-      .schema('content_engine')
-      .from('admins')
+      .schema('portal')
+      .from('studio_admins')
       .select('user_id')
       .eq('user_id', session.user.id)
       .maybeSingle()
