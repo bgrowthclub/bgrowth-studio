@@ -88,6 +88,31 @@ async function handleMembers(req, res, supabase) {
     return res.status(400).json({ error: 'email must be at least 3 characters.' });
   }
 
+  // TEMPORARY DIAGNOSTIC — comparison test to determine whether the
+  // portal.users PGRST125 failure is specific to that table or systemic to
+  // this client's access to the portal schema (see the Access Management
+  // production error audit). Uses the exact same supabase client instance,
+  // same schema, a table already confirmed exposed and working elsewhere.
+  // Read-only, does not affect the response below. Remove once resolved.
+  try {
+    const {
+      status: diagStatus,
+      statusText: diagStatusText,
+      error: diagError,
+    } = await supabase.schema('portal').from('workspace_categories').select('id').limit(1);
+    if (diagError) {
+      console.error(
+        `[access-management] diagnostic=portal_workspace_categories status=${diagStatus ?? ''} statusText=${diagStatusText ?? ''} code=${diagError.code ?? ''} message=${diagError.message ?? ''}`
+      );
+    } else {
+      console.log(`[access-management] diagnostic=portal_workspace_categories status=${diagStatus ?? ''} success=true`);
+    }
+  } catch (err) {
+    console.error(
+      `[access-management] diagnostic=portal_workspace_categories threw name=${err?.name ?? 'Error'} message=${err?.message ?? String(err)}`
+    );
+  }
+
   let candidates;
   try {
     const { data, error: candidatesError, status, statusText } = await supabase
