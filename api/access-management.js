@@ -14,6 +14,36 @@ function logDiagnostic(stage, err) {
 }
 
 /**
+ * Diagnostic-only: logs the hostname (never the full URL, which is not
+ * secret either, but the hostname alone is all this needs) SUPABASE_URL
+ * resolves to, so a production log can confirm which Supabase project this
+ * deployment is actually pointed at — see the Access Management production
+ * error audit. Reads process.env directly; does not touch supabaseAdmin.js
+ * or its client configuration.
+ */
+function logSupabaseHostname() {
+  const url = process.env.SUPABASE_URL;
+  if (!url) return;
+  try {
+    console.log(`[access-management] SUPABASE_URL hostname=${new URL(url).hostname}`);
+  } catch (err) {
+    console.error(`[access-management] stage=client_init:hostname_parse name=${err?.name ?? 'Error'} message=${err?.message ?? String(err)}`);
+  }
+}
+
+/**
+ * Diagnostic-only: logs the PostgREST response metadata for a failed
+ * portal.users query — none of these fields (message/code/details/hint/
+ * status/statusText) can ever contain the service-role key, headers, or
+ * member data; they're the same shape Postgres/PostgREST itself returns.
+ */
+function logPostgrestFailure(stage, error, status, statusText) {
+  console.error(
+    `[access-management] stage=${stage} message=${error?.message ?? ''} code=${error?.code ?? ''} details=${error?.details ?? ''} hint=${error?.hint ?? ''} status=${status ?? ''} statusText=${statusText ?? ''}`
+  );
+}
+
+/**
  * Access Management — consolidated into one Serverless Function (Vercel
  * Hobby plan's 12-function limit; see the Access Management Serverless
  * Function audit). Was two files (members.js, grants.js); routed here by
@@ -60,14 +90,14 @@ async function handleMembers(req, res, supabase) {
 
   let candidates;
   try {
-    const { data, error: candidatesError } = await supabase
+    const { data, error: candidatesError, status, statusText } = await supabase
       .schema('portal')
       .from('users')
       .select('id, email, full_name, has_used_trial')
       .ilike('email', `%${email}%`)
       .limit(10);
     if (candidatesError) {
-      logDiagnostic('members:portal_users_query', candidatesError);
+      logPostgrestFailure('members:portal_users_query', candidatesError, status, statusText);
       return res.status(500).json({ error: candidatesError.message });
     }
     candidates = data;
@@ -258,6 +288,8 @@ export default async function handler(req, res) {
   if (resource !== 'members' && resource !== 'grants') {
     return res.status(400).json({ error: 'resource must be "members" or "grants".' });
   }
+
+  logSupabaseHostname();
 
   let supabase;
   try {
