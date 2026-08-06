@@ -1,14 +1,20 @@
 import { CONTENT_SPECS, PLATFORM_LABELS } from './contentSpecs.js';
 
 /**
- * Composes one generation prompt from three independent inputs: the
+ * Composes one generation prompt from four independent inputs: the
  * centralized Brand Profile (so no individual prompt has to redefine
- * BGrowth's voice), the selected Content Strategy's guidance, and the
- * product being promoted. This is the one place those three come together
- * — api/content-engine/generate.js never builds prompt text itself, it only
- * gathers the rows and calls this.
+ * BGrowth's voice), the selected Content Strategy's guidance, the campaign's
+ * own Goal, and the product being promoted. This is the one place those
+ * come together — api/content-engine/generate.js never builds prompt text
+ * itself, it only gathers the rows and calls this.
+ *
+ * Strategy and Goal are deliberately kept as separate sections: Strategy is
+ * HOW the message is framed (a fixed, reusable narrative approach from
+ * content_strategies); Goal is WHAT this specific campaign is trying to
+ * achieve (free text on campaigns.goal, optional — plenty of campaigns have
+ * none). Never merge them into one section.
  */
-export function buildGenerationPrompt({ brandProfile, strategy, product, platform, contentType }) {
+export function buildGenerationPrompt({ brandProfile, strategy, product, platform, contentType, goal }) {
   const spec = CONTENT_SPECS[contentType];
   if (!spec) {
     throw new Error(`Unknown content type "${contentType}".`);
@@ -41,6 +47,8 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
     .filter(Boolean)
     .join('\n');
 
+  const trimmedGoal = typeof goal === 'string' ? goal.trim() : '';
+
   const productLines = [
     `Product name: ${product.name}`,
     `Product summary: ${product.short_description}`,
@@ -55,6 +63,7 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
     brandLines,
     '--- CONTENT STRATEGY: ' + strategy.name + ' ---',
     strategy.prompt_guidance,
+    trimmedGoal ? `--- CAMPAIGN GOAL ---\n\n${trimmedGoal}` : null,
     '--- PRODUCT TO PROMOTE ---',
     productLines,
     '--- TASK ---',
@@ -62,5 +71,7 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
     spec.instruction,
     'Return ONLY valid JSON matching exactly this shape, no commentary:',
     spec.schema,
-  ].join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }

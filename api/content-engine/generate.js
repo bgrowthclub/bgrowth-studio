@@ -68,6 +68,7 @@ export default async function handler(req, res) {
     product,
     platform,
     contentType,
+    goal: campaign.goal,
   });
 
   let generation;
