@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Trash2, Copy, Check } from 'lucide-react';
-import { ContentItemBody } from './ContentItemBody';
+import { ContentItemBody, buildContentCopy } from './ContentItemBody';
 import { StatusBadge } from './StatusBadge';
 import { deleteContentItem, updateContentItem } from '../api/contentEngineClient';
 import { buildUtmLink } from '../utmLink';
@@ -25,10 +25,12 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [contentCopied, setContentCopied] = useState(false);
 
   const isDirty = JSON.stringify(draftBody) !== JSON.stringify(item.body);
   const editable = item.status === 'draft' || item.status === 'review';
   const utmCampaign = campaign ?? item.campaigns;
+  const contentCopy = buildContentCopy({ content_type: item.content_type, body: draftBody });
 
   const runUpdate = async (patch: Parameters<typeof updateContentItem>[0]) => {
     setIsSaving(true);
@@ -56,9 +58,23 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
 
   const handleCopyLink = async () => {
     if (!utmCampaign) return;
-    await navigator.clipboard.writeText(buildUtmLink(utmCampaign, item));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(buildUtmLink(utmCampaign, item));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setError('Copy failed — your browser blocked clipboard access.');
+    }
+  };
+
+  const handleCopyContent = async () => {
+    try {
+      await navigator.clipboard.writeText(contentCopy.text);
+      setContentCopied(true);
+      setTimeout(() => setContentCopied(false), 1500);
+    } catch {
+      setError('Copy failed — your browser blocked clipboard access.');
+    }
   };
 
   return (
@@ -74,6 +90,18 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
 
       <ContentItemBody item={{ content_type: item.content_type, body: draftBody }} editable={editable} onChange={setDraftBody} />
+
+      <div className="mt-3 flex items-center gap-2 rounded-lg bg-navy-50 px-3 py-2">
+        <p className="flex-1 truncate text-xs text-navy-500">Ready to paste into {PLATFORM_LABELS[item.platform]} or elsewhere</p>
+        <button
+          type="button"
+          onClick={handleCopyContent}
+          className="flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
+        >
+          {contentCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          {contentCopied ? 'Copied!' : contentCopy.label}
+        </button>
+      </div>
 
       {utmCampaign && (
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-navy-50 px-3 py-2">

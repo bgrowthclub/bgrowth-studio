@@ -1,9 +1,61 @@
+import { useState } from 'react';
+import { Copy, Check } from 'lucide-react';
 import type { ContentItem } from '../types';
 
 interface ContentItemBodyProps {
   item: Pick<ContentItem, 'content_type' | 'body'>;
   editable: boolean;
   onChange?: (body: Record<string, unknown>) => void;
+}
+
+function formatHashtags(hashtags: string[] | undefined): string {
+  return (hashtags ?? []).map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' ');
+}
+
+/**
+ * Ready-to-paste plain-text representation of a content_item.body, per
+ * content_type — the copy-to-clipboard counterpart of the render branches
+ * below, kept in this file since it's already the single source of truth
+ * for these shapes. Only formats what the model actually returned; never
+ * includes campaign/status/platform metadata or the UTM link (that stays
+ * a separate "Copy link" action in ContentItemPanel).
+ */
+export function buildContentCopy(item: Pick<ContentItem, 'content_type' | 'body'>): { label: string; text: string } {
+  const body = item.body as Record<string, any>;
+
+  if (item.content_type === 'caption') {
+    return { label: 'Copy Caption', text: `${body.caption ?? ''}\n\n${formatHashtags(body.hashtags)}` };
+  }
+
+  if (item.content_type === 'carousel') {
+    const slides: { heading: string; body: string }[] = body.slides ?? [];
+    const slidesText = slides.map((s, i) => `Slide ${i + 1}\n${s.heading}\n${s.body}`).join('\n\n');
+    return {
+      label: 'Copy All',
+      text: [slidesText, `Caption\n${body.caption ?? ''}`, `Hashtags\n${formatHashtags(body.hashtags)}`]
+        .filter(Boolean)
+        .join('\n\n'),
+    };
+  }
+
+  if (item.content_type === 'script') {
+    const scenes: { visual: string; voiceover: string }[] = body.scenes ?? [];
+    const scenesText = scenes.map((s, i) => `Scene ${i + 1}\n${s.visual}\n${s.voiceover}`).join('\n\n');
+    return {
+      label: 'Copy Script',
+      text: [`Hook\n${body.hook ?? ''}`, scenesText, `CTA\n${body.cta ?? ''}`].filter(Boolean).join('\n\n'),
+    };
+  }
+
+  if (item.content_type === 'hook_cta') {
+    const numbered = (items: string[] | undefined) => (items ?? []).map((v, i) => `${i + 1}. ${v}`).join('\n');
+    return {
+      label: 'Copy All',
+      text: [`Hooks\n\n${numbered(body.hooks)}`, `CTAs\n\n${numbered(body.ctas)}`].join('\n\n'),
+    };
+  }
+
+  return { label: 'Copy', text: JSON.stringify(body, null, 2) };
 }
 
 function TextField({ label, value, onChange, editable, rows = 2 }: { label: string; value: string; onChange: (v: string) => void; editable: boolean; rows?: number }) {
@@ -53,6 +105,17 @@ function ListField({ label, items, onChange, editable }: { label: string; items:
 export function ContentItemBody({ item, editable, onChange }: ContentItemBodyProps) {
   const body = item.body as Record<string, any>;
   const set = (patch: Record<string, unknown>) => onChange?.({ ...body, ...patch });
+  const [copiedSlide, setCopiedSlide] = useState<number | null>(null);
+
+  const handleCopySlide = async (index: number, slide: { heading: string; body: string }) => {
+    try {
+      await navigator.clipboard.writeText(`${slide.heading}\n${slide.body}`);
+      setCopiedSlide(index);
+      setTimeout(() => setCopiedSlide((current) => (current === index ? null : current)), 1500);
+    } catch {
+      // Best-effort convenience copy — no error surface needed for a single slide.
+    }
+  };
 
   if (item.content_type === 'caption') {
     return (
@@ -71,7 +134,17 @@ export function ContentItemBody({ item, editable, onChange }: ContentItemBodyPro
           <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-navy-400">Slides</label>
           {slides.map((slide, i) => (
             <div key={i} className="rounded-lg border border-navy-100 p-3">
-              <p className="mb-1 text-[11px] font-bold text-navy-400">Slide {i + 1}</p>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-bold text-navy-400">Slide {i + 1}</p>
+                <button
+                  type="button"
+                  onClick={() => handleCopySlide(i, slide)}
+                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700"
+                >
+                  {copiedSlide === i ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copiedSlide === i ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
               {editable ? (
                 <div className="space-y-2">
                   <input
