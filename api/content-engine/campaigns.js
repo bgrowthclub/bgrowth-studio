@@ -25,6 +25,30 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin();
 
   if (req.method === 'GET') {
+    // ?resource=catalog&q=... — published Workspace search for the New
+    // Campaign picker. Was a direct browser-side anon-key call to
+    // portal.catalog_index (src/modules/content-engine/api/catalogProducts.ts);
+    // moved server-side onto the same service-role client every other
+    // Content Engine read already uses, since that path is proven working
+    // while the browser anon client depends on separately-configured
+    // VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY build-time variables. Same
+    // query shape as before — no change to what's selected or how it's
+    // filtered/ordered/limited.
+    if (req.query.resource === 'catalog') {
+      const q = (req.query.q ?? '').trim();
+      let query = supabase
+        .schema('portal')
+        .from('catalog_index')
+        .select('product_id, slug, name, short_description, cover_image_url')
+        .order('published_at', { ascending: false })
+        .limit(25);
+      if (q) query = query.ilike('name', `%${q}%`);
+
+      const { data, error } = await query;
+      if (error) return res.status(500).json({ error: error.message });
+      return res.json({ products: data });
+    }
+
     const { data, error } = await supabase
       .schema('content_engine')
       .from('campaigns')

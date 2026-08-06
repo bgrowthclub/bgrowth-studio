@@ -1,4 +1,4 @@
-import type { BrandProfile, Campaign, ContentItem, ContentItemStatus, ContentStrategy, ContentType, Platform } from '../types';
+import type { BrandProfile, Campaign, ContentItem, ContentItemStatus, ContentStrategy, ContentType, Platform, PublishedProductSummary } from '../types';
 
 async function parseOrThrow<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -32,6 +32,20 @@ export async function fetchCampaigns(): Promise<Campaign[]> {
   const res = await fetch('/api/content-engine/campaigns');
   const { campaigns } = await parseOrThrow<{ campaigns: Campaign[] }>(res);
   return campaigns;
+}
+
+/**
+ * Published Workspace search for the New Campaign picker — server-side via
+ * this endpoint's service-role client (see api/content-engine/campaigns.js's
+ * `?resource=catalog` branch), not a direct browser call to Supabase. Same
+ * portal.catalog_index columns/order/limit/filter as before; only the
+ * transport changed.
+ */
+export async function searchPublishedProducts(query: string): Promise<PublishedProductSummary[]> {
+  const qs = query.trim() ? `&q=${encodeURIComponent(query.trim())}` : '';
+  const res = await fetch(`/api/content-engine/campaigns?resource=catalog${qs}`);
+  const { products } = await parseOrThrow<{ products: PublishedProductSummary[] }>(res);
+  return products;
 }
 
 export async function createCampaign(input: {

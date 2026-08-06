@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { searchPublishedProducts } from '../api/catalogProducts';
-import { createCampaign, fetchStrategies } from '../api/contentEngineClient';
+import { createCampaign, fetchStrategies, searchPublishedProducts } from '../api/contentEngineClient';
 import type { Campaign, ContentStrategy, PublishedProductSummary } from '../types';
 
 interface NewCampaignModalProps {
@@ -32,7 +31,10 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
   useEffect(() => {
     const timer = setTimeout(() => {
       searchPublishedProducts(query)
-        .then(setProducts)
+        .then((results) => {
+          setProducts(results);
+          setError(null);
+        })
         .catch((err) => setError(err.message));
     }, 300);
     return () => clearTimeout(timer);
@@ -92,7 +94,7 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
                   <span className="ml-2 shrink-0 text-[11px] text-navy-400">{product.slug}</span>
                 </button>
               ))}
-              {products.length === 0 && <p className="px-3 py-2 text-xs text-navy-400">No published Workspaces found.</p>}
+              {!error && products.length === 0 && <p className="px-3 py-2 text-xs text-navy-400">No published Workspaces found.</p>}
             </div>
           </div>
 
