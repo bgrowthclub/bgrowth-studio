@@ -18,5 +18,5 @@ export async function getProviderForTask(taskType) {
     .eq('task_type', taskType)
     .maybeSingle();
 
-  return data ?? { provider: 'gemini', model: 'gemini-2.0-flash' };
+  return data ?? { provider: 'gemini', model: 'gemini-3.6-flash' };
 }
