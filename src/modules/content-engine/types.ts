@@ -1,6 +1,11 @@
 export type Platform = 'instagram' | 'facebook' | 'tiktok';
 export type ContentType = 'caption' | 'carousel' | 'script' | 'hook_cta';
 export type ContentItemStatus = 'draft' | 'review' | 'approved' | 'scheduled' | 'published';
+/** campaigns.language is a plain, unconstrained text column — this union is
+ * only the app-layer set of choices the New Campaign select currently
+ * offers; adding a language later is a new union member + label, no schema
+ * change (see api/_lib/contentEngine/promptBuilder.js's resolution logic). */
+export type Language = 'en-US';
 
 export interface BrandProfile {
   id: number;
@@ -32,6 +37,12 @@ export interface Campaign {
   strategy_id: string;
   name: string;
   goal: string | null;
+  /** Who this specific campaign targets — distinct from BrandProfile.target_audience (BGrowth's broad audience across every campaign). */
+  audience: string | null;
+  /** Overrides BrandProfile.default_language for this campaign's generation when set; null falls back to the brand default. */
+  language: string | null;
+  /** Empty array means "no campaign-level channel restriction" (legacy campaigns, or missing pre-migration) — never "cannot generate." */
+  channels: Platform[];
   utm_campaign: string;
   created_at: string;
   content_strategies?: Pick<ContentStrategy, 'id' | 'key' | 'name'>;
@@ -69,6 +80,10 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   instagram: 'Instagram',
   facebook: 'Facebook',
   tiktok: 'TikTok',
+};
+
+export const LANGUAGE_LABELS: Record<Language, string> = {
+  'en-US': 'English',
 };
 
 export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {

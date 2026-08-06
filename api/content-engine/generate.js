@@ -69,6 +69,8 @@ export default async function handler(req, res) {
     platform,
     contentType,
     goal: campaign.goal,
+    audience: campaign.audience,
+    language: campaign.language,
   });
 
   let generation;

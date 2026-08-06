@@ -1,30 +1,39 @@
 import { CONTENT_SPECS, PLATFORM_LABELS } from './contentSpecs.js';
 
 /**
- * Composes one generation prompt from four independent inputs: the
+ * Composes one generation prompt from five independent inputs: the
  * centralized Brand Profile (so no individual prompt has to redefine
  * BGrowth's voice), the selected Content Strategy's guidance, the campaign's
- * own Goal, and the product being promoted. This is the one place those
- * come together — api/content-engine/generate.js never builds prompt text
- * itself, it only gathers the rows and calls this.
+ * own Goal and Audience, and the product being promoted. This is the one
+ * place those come together — api/content-engine/generate.js never builds
+ * prompt text itself, it only gathers the rows and calls this.
  *
- * Strategy and Goal are deliberately kept as separate sections: Strategy is
- * HOW the message is framed (a fixed, reusable narrative approach from
- * content_strategies); Goal is WHAT this specific campaign is trying to
- * achieve (free text on campaigns.goal, optional — plenty of campaigns have
- * none). Never merge them into one section.
+ * Four concepts are deliberately kept as separate sections, never merged:
+ *  - Strategy: HOW the message is framed (a fixed, reusable narrative
+ *    approach from content_strategies).
+ *  - Goal: WHAT this specific campaign is trying to achieve (free text on
+ *    campaigns.goal, optional).
+ *  - Campaign Audience: WHO this specific campaign targets (free text on
+ *    campaigns.audience, optional) — distinct from Brand Profile's own
+ *    target_audience below, which is BGrowth's broad audience across every
+ *    campaign. Both may be present; neither replaces the other.
+ *  - Language: resolved to exactly ONE value before it reaches the prompt
+ *    (campaign.language when set, else brand_profile.default_language) —
+ *    never two competing language instructions.
  */
-export function buildGenerationPrompt({ brandProfile, strategy, product, platform, contentType, goal }) {
+export function buildGenerationPrompt({ brandProfile, strategy, product, platform, contentType, goal, audience, language }) {
   const spec = CONTENT_SPECS[contentType];
   if (!spec) {
     throw new Error(`Unknown content type "${contentType}".`);
   }
 
   const platformLabel = PLATFORM_LABELS[platform] ?? platform;
+  const trimmedLanguage = typeof language === 'string' ? language.trim() : '';
+  const resolvedLanguage = trimmedLanguage || brandProfile.default_language;
 
   const brandLines = [
     `Brand: ${brandProfile.name}${brandProfile.tagline ? ` — "${brandProfile.tagline}"` : ''}`,
-    `Write in: ${brandProfile.default_language}`,
+    `Write in: ${resolvedLanguage}`,
     brandProfile.tone_voice && Object.keys(brandProfile.tone_voice).length
       ? `Tone/voice rules: ${JSON.stringify(brandProfile.tone_voice)}`
       : null,
@@ -38,7 +47,7 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
       ? `Preferred CTA styles: ${brandProfile.preferred_cta_styles.join('; ')}`
       : null,
     brandProfile.target_audience && Object.keys(brandProfile.target_audience).length
-      ? `Target audience: ${JSON.stringify(brandProfile.target_audience)}`
+      ? `Brand Audience (BGrowth's broad audience across every campaign): ${JSON.stringify(brandProfile.target_audience)}`
       : null,
     brandProfile.social_content_rules && Object.keys(brandProfile.social_content_rules).length
       ? `Social content rules: ${JSON.stringify(brandProfile.social_content_rules)}`
@@ -48,6 +57,7 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
     .join('\n');
 
   const trimmedGoal = typeof goal === 'string' ? goal.trim() : '';
+  const trimmedAudience = typeof audience === 'string' ? audience.trim() : '';
 
   const productLines = [
     `Product name: ${product.name}`,
@@ -64,6 +74,7 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
     '--- CONTENT STRATEGY: ' + strategy.name + ' ---',
     strategy.prompt_guidance,
     trimmedGoal ? `--- CAMPAIGN GOAL ---\n\n${trimmedGoal}` : null,
+    trimmedAudience ? `--- CAMPAIGN AUDIENCE (this specific campaign's target) ---\n\n${trimmedAudience}` : null,
     '--- PRODUCT TO PROMOTE ---',
     productLines,
     '--- TASK ---',

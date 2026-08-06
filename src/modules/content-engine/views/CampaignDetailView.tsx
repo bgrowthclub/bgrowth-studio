@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { fetchCampaigns, fetchContentItems, generateContentItem } from '../api/contentEngineClient';
 import { ContentItemPanel } from '../components/ContentItemPanel';
 import type { Campaign, ContentItem, ContentType, Platform } from '../types';
-import { CONTENT_TYPE_LABELS, PLATFORM_LABELS } from '../types';
+import { CONTENT_TYPE_LABELS, LANGUAGE_LABELS, PLATFORM_LABELS } from '../types';
+
+const ALL_PLATFORMS = Object.keys(PLATFORM_LABELS) as Platform[];
 
 export function CampaignDetailView({ campaignId, onBack: _onBack }: { campaignId: string; onBack: () => void }) {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -23,6 +25,22 @@ export function CampaignDetailView({ campaignId, onBack: _onBack }: { campaignId
   };
 
   useEffect(load, [campaignId]);
+
+  // Legacy campaigns (or campaigns fetched before this column existed) have
+  // channels missing/empty — that means "no campaign-level restriction," so
+  // Generate keeps offering every currently supported platform, exactly as
+  // it always did. A campaign with channels selected narrows to just those.
+  const allowedPlatforms = useMemo<Platform[]>(() => {
+    if (campaign?.channels && campaign.channels.length > 0) return campaign.channels;
+    return ALL_PLATFORMS;
+  }, [campaign]);
+
+  useEffect(() => {
+    if (allowedPlatforms.length > 0 && !allowedPlatforms.includes(platform)) {
+      setPlatform(allowedPlatforms[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedPlatforms]);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -47,6 +65,11 @@ export function CampaignDetailView({ campaignId, onBack: _onBack }: { campaignId
           {campaign.content_strategies?.name} · Workspace: {campaign.product_slug} · UTM: {campaign.utm_campaign}
         </p>
         {campaign.goal && <p className="mt-2 text-sm text-navy-600">Goal: {campaign.goal}</p>}
+        {campaign.audience && <p className="mt-1 text-sm text-navy-600">Audience: {campaign.audience}</p>}
+        <p className="mt-1 text-xs text-navy-400">
+          {campaign.language && <>Language: {LANGUAGE_LABELS[campaign.language as keyof typeof LANGUAGE_LABELS] ?? campaign.language} · </>}
+          Channels: {campaign.channels?.length ? campaign.channels.map((c) => PLATFORM_LABELS[c]).join(', ') : 'All platforms'}
+        </p>
       </div>
 
       <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-card">
@@ -60,9 +83,9 @@ export function CampaignDetailView({ campaignId, onBack: _onBack }: { campaignId
               onChange={(e) => setPlatform(e.target.value as Platform)}
               className="rounded-lg border border-navy-100 px-3 py-2 text-sm outline-none focus:border-brand-500"
             >
-              {Object.entries(PLATFORM_LABELS).map(([value, label]) => (
+              {allowedPlatforms.map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {PLATFORM_LABELS[value]}
                 </option>
               ))}
             </select>

@@ -54,6 +54,9 @@ export async function createCampaign(input: {
   strategyId: string;
   name: string;
   goal?: string;
+  audience?: string;
+  language?: string;
+  channels: Platform[];
   utmCampaign?: string;
 }): Promise<Campaign> {
   const res = await fetch('/api/content-engine/campaigns', {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { createCampaign, fetchStrategies, searchPublishedProducts } from '../api/contentEngineClient';
-import type { Campaign, ContentStrategy, PublishedProductSummary } from '../types';
+import type { Campaign, ContentStrategy, Language, Platform, PublishedProductSummary } from '../types';
+import { LANGUAGE_LABELS, PLATFORM_LABELS } from '../types';
 
 interface NewCampaignModalProps {
   onClose: () => void;
@@ -16,6 +17,9 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
   const [strategyId, setStrategyId] = useState('');
   const [name, setName] = useState('');
   const [goal, setGoal] = useState('');
+  const [audience, setAudience] = useState('');
+  const [language, setLanguage] = useState<Language>('en-US');
+  const [channels, setChannels] = useState<Platform[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +45,7 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
   }, [query]);
 
   const handleSubmit = async () => {
-    if (!selectedProduct || !strategyId || !name.trim()) return;
+    if (!selectedProduct || !strategyId || !name.trim() || channels.length === 0) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -51,6 +55,9 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
         strategyId,
         name: name.trim(),
         goal: goal.trim() || undefined,
+        audience: audience.trim() || undefined,
+        language,
+        channels,
       });
       onCreated(campaign);
     } catch (err) {
@@ -58,6 +65,10 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const toggleChannel = (platform: Platform) => {
+    setChannels((prev) => (prev.includes(platform) ? prev.filter((c) => c !== platform) : [...prev, platform]));
   };
 
   return (
@@ -137,6 +148,52 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
               className="w-full rounded-lg border border-navy-100 px-3 py-2 text-sm outline-none focus:border-brand-500"
             />
           </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-navy-600">Audience (optional)</label>
+            <textarea
+              value={audience}
+              onChange={(e) => setAudience(e.target.value)}
+              rows={2}
+              placeholder="e.g. Personal trainers and people organizing workout programs"
+              className="w-full rounded-lg border border-navy-100 px-3 py-2 text-sm outline-none focus:border-brand-500"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-navy-600">Language</label>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as Language)}
+              className="w-full rounded-lg border border-navy-100 px-3 py-2 text-sm outline-none focus:border-brand-500"
+            >
+              {(Object.entries(LANGUAGE_LABELS) as [Language, string][]).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-navy-600">Channels</label>
+            <div className="flex flex-wrap gap-2">
+              {(Object.entries(PLATFORM_LABELS) as [Platform, string][]).map(([value, label]) => {
+                const checked = channels.includes(value);
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => toggleChannel(value)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${checked ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-navy-100 text-navy-600 hover:bg-navy-50'}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {channels.length === 0 && <p className="mt-1 text-xs text-navy-400">Select at least one channel.</p>}
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
@@ -145,7 +202,7 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
           </button>
           <button
             type="button"
-            disabled={!selectedProduct || !strategyId || !name.trim() || isSubmitting}
+            disabled={!selectedProduct || !strategyId || !name.trim() || channels.length === 0 || isSubmitting}
             onClick={handleSubmit}
             className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
           >

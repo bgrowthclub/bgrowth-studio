@@ -1,4 +1,7 @@
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
+import { PLATFORM_LABELS } from '../_lib/contentEngine/contentSpecs.js';
+
+const VALID_PLATFORMS = Object.keys(PLATFORM_LABELS);
 
 function slugifyForUtm(value) {
   return value
@@ -59,9 +62,23 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { productId, productSlug, strategyId, name, goal, utmCampaign } = req.body ?? {};
+    const { productId, productSlug, strategyId, name, goal, utmCampaign, audience, language, channels } = req.body ?? {};
     if (!productId || !productSlug || !strategyId || !name) {
       return res.status(400).json({ error: 'productId, productSlug, strategyId, and name are required.' });
+    }
+
+    // Channels is a hard requirement for new campaigns (explicit channel
+    // planning) — distinct from legacy campaigns created before this field
+    // existed, whose channels='{}' fallback means "no restriction" instead
+    // (see CampaignDetailView.tsx). Never trust arbitrary values here.
+    if (!Array.isArray(channels) || channels.length === 0) {
+      return res.status(400).json({ error: 'channels must include at least one supported platform.' });
+    }
+    const invalidChannels = channels.filter((c) => !VALID_PLATFORMS.includes(c));
+    if (invalidChannels.length > 0) {
+      return res.status(400).json({
+        error: `channels contains unsupported platform(s): ${invalidChannels.join(', ')}. Must be one of: ${VALID_PLATFORMS.join(', ')}.`,
+      });
     }
 
     const { data, error } = await supabase
@@ -73,6 +90,9 @@ export default async function handler(req, res) {
         strategy_id: strategyId,
         name,
         goal: goal || null,
+        audience: typeof audience === 'string' && audience.trim() ? audience.trim() : null,
+        language: typeof language === 'string' && language.trim() ? language.trim() : null,
+        channels,
         utm_campaign: utmCampaign || slugifyForUtm(name),
       })
       .select('*, content_strategies(id, key, name)')
