@@ -62,6 +62,17 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: 'This campaign\'s product is no longer published.' });
   }
 
+  // Platform guidance is optional — a platform with no row here yet (or a
+  // lookup error) must never block generation, only omit that section of
+  // the prompt. See platform_rules migration's note on this fallback.
+  const { data: platformRule } = await supabase
+    .schema('content_engine')
+    .from('platform_rules')
+    .select('guidance')
+    .eq('platform', platform)
+    .eq('is_active', true)
+    .maybeSingle();
+
   const prompt = buildGenerationPrompt({
     brandProfile,
     strategy: campaign.content_strategies,
@@ -71,6 +82,7 @@ export default async function handler(req, res) {
     goal: campaign.goal,
     audience: campaign.audience,
     language: campaign.language,
+    platformGuidance: platformRule?.guidance ?? null,
   });
 
   let generation;

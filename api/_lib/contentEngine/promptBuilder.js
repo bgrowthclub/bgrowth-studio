@@ -1,14 +1,14 @@
 import { CONTENT_SPECS, PLATFORM_LABELS } from './contentSpecs.js';
 
 /**
- * Composes one generation prompt from five independent inputs: the
- * centralized Brand Profile (so no individual prompt has to redefine
- * BGrowth's voice), the selected Content Strategy's guidance, the campaign's
- * own Goal and Audience, and the product being promoted. This is the one
+ * Composes one generation prompt from the centralized Brand Profile (so no
+ * individual prompt has to redefine BGrowth's voice), the selected Content
+ * Strategy's guidance, the campaign's own Goal and Audience, the platform's
+ * generation guidance, and the product being promoted. This is the one
  * place those come together — api/content-engine/generate.js never builds
  * prompt text itself, it only gathers the rows and calls this.
  *
- * Four concepts are deliberately kept as separate sections, never merged:
+ * These concepts are deliberately kept as separate sections, never merged:
  *  - Strategy: HOW the message is framed (a fixed, reusable narrative
  *    approach from content_strategies).
  *  - Goal: WHAT this specific campaign is trying to achieve (free text on
@@ -20,8 +20,14 @@ import { CONTENT_SPECS, PLATFORM_LABELS } from './contentSpecs.js';
  *  - Language: resolved to exactly ONE value before it reaches the prompt
  *    (campaign.language when set, else brand_profile.default_language) —
  *    never two competing language instructions.
+ *  - Platform Guidance: HOW the message should be adapted to the selected
+ *    platform's format/tone conventions (free text from
+ *    content_engine.platform_rules, optional — a platform with no rule row
+ *    yet simply omits this section, never blocks generation). Distinct
+ *    from Strategy, which still decides how the message is framed
+ *    regardless of platform.
  */
-export function buildGenerationPrompt({ brandProfile, strategy, product, platform, contentType, goal, audience, language }) {
+export function buildGenerationPrompt({ brandProfile, strategy, product, platform, contentType, goal, audience, language, platformGuidance }) {
   const spec = CONTENT_SPECS[contentType];
   if (!spec) {
     throw new Error(`Unknown content type "${contentType}".`);
@@ -59,6 +65,7 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
 
   const trimmedGoal = typeof goal === 'string' ? goal.trim() : '';
   const trimmedAudience = typeof audience === 'string' ? audience.trim() : '';
+  const trimmedPlatformGuidance = typeof platformGuidance === 'string' ? platformGuidance.trim() : '';
 
   const productLines = [
     `Product name: ${product.name}`,
@@ -80,6 +87,7 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
     productLines,
     '--- TASK ---',
     `Platform: ${platformLabel}`,
+    trimmedPlatformGuidance ? `--- PLATFORM GUIDANCE (${platformLabel}) ---\n\n${trimmedPlatformGuidance}` : null,
     spec.instruction,
     'Return ONLY valid JSON matching exactly this shape, no commentary:',
     spec.schema,
