@@ -106,10 +106,10 @@ function EditCampaignForm({
 
         <div>
           <label className="mb-1 block text-xs font-semibold text-navy-600">Goal (optional)</label>
-          <input
-            type="text"
+          <textarea
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
+            rows={3}
             placeholder="e.g. Drive trial sign-ups"
             className="w-full rounded-lg border border-navy-100 px-3 py-2 text-sm outline-none focus:border-brand-500"
           />
