@@ -20,6 +20,14 @@ export type Language = 'en-US' | 'pt-BR' | 'es';
  * authoritative server-side, in api/content-engine/generate.js's
  * VARIATION_TYPES — never duplicated here. */
 export type VariationType = 'alternative_hook' | 'alternative_angle' | 'shorter' | 'more_educational' | 'more_direct' | 'alternative_cta';
+/** Phase 2F-A — the MEDIA layer for a content_item, entirely separate from
+ * ContentItemStatus/PublicationStatus above: this describes only the
+ * generated-file lifecycle. Only 'image' is generatable in Phase 2F-A;
+ * carousel/video are future asset types, added as new union members, never
+ * a schema change (asset_type has no DB check constraint — see
+ * 0027_content_engine_creative_assets.sql). */
+export type AssetType = 'image';
+export type AssetStatus = 'ready' | 'failed';
 
 export interface BrandProfile {
   id: number;
@@ -111,6 +119,35 @@ export interface ContentPublication {
   };
 }
 
+/**
+ * Phase 2F-A — one generated media file for a content_item. A content_item
+ * may accumulate any number of these (multiple images, later carousel
+ * slides/video) without ever being duplicated itself — generating a
+ * creative never creates a new content_items row. storage_path is the
+ * permanent identifier server-side; public_url is always derived from it
+ * (see api/_lib/uploadCreativeAsset.js) and is what the UI actually reads.
+ */
+export interface CreativeAsset {
+  id: string;
+  content_item_id: string;
+  asset_type: AssetType;
+  status: AssetStatus;
+  provider: string | null;
+  model: string | null;
+  storage_path: string | null;
+  public_url: string | null;
+  mime_type: string | null;
+  width: number | null;
+  height: number | null;
+  duration_seconds: number | null;
+  size_bytes: number | null;
+  checksum: string | null;
+  generation_prompt: string | null;
+  generation_metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 // Mirrors portal.catalog_index's public-read columns Content Engine actually
 // needs — read directly from Supabase, never a duplicate catalog (see
 // catalogProducts.ts).
@@ -156,4 +193,8 @@ export const VARIATION_TYPE_LABELS: Record<VariationType, string> = {
   more_educational: 'More Educational',
   more_direct: 'More Direct',
   alternative_cta: 'Alternative CTA',
+};
+
+export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+  image: 'Image',
 };

@@ -1,4 +1,4 @@
-import type { BrandProfile, Campaign, ContentItem, ContentItemStatus, ContentPublication, ContentStrategy, ContentType, Platform, PublishedProductSummary, VariationType } from '../types';
+import type { AssetType, BrandProfile, Campaign, ContentItem, ContentItemStatus, ContentPublication, ContentStrategy, ContentType, CreativeAsset, Platform, PublishedProductSummary, VariationType } from '../types';
 
 async function parseOrThrow<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -173,4 +173,26 @@ export async function generateContentItem(input: {
   });
   const { contentItem } = await parseOrThrow<{ contentItem: ContentItem }>(res);
   return contentItem;
+}
+
+/**
+ * Phase 2F-A — the creative_assets media layer, reached through its own
+ * dedicated endpoint (never /api/content-engine/generate — Creative Asset
+ * generation never calls the text-generation pipeline).
+ */
+export async function fetchCreativeAssets(contentItemId?: string): Promise<CreativeAsset[]> {
+  const qs = contentItemId ? `?contentItemId=${encodeURIComponent(contentItemId)}` : '';
+  const res = await fetch(`/api/content-engine/creative-assets${qs}`);
+  const { creativeAssets } = await parseOrThrow<{ creativeAssets: CreativeAsset[] }>(res);
+  return creativeAssets;
+}
+
+export async function generateCreativeAsset(input: { contentItemId: string; assetType: AssetType }): Promise<CreativeAsset> {
+  const res = await fetch('/api/content-engine/creative-assets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const { creativeAsset } = await parseOrThrow<{ creativeAsset: CreativeAsset }>(res);
+  return creativeAsset;
 }

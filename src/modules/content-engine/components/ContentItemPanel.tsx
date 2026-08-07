@@ -1,13 +1,26 @@
-import { useState } from 'react';
-import { Trash2, Copy, Check, Sparkles, Repeat } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Trash2, Copy, Check, Sparkles, Repeat, Image as ImageIcon, Download } from 'lucide-react';
 import { ContentItemBody, buildContentCopy } from './ContentItemBody';
 import { StatusBadge } from './StatusBadge';
-import { createPublication, deleteContentItem, generateContentItem, updateContentItem } from '../api/contentEngineClient';
+import {
+  createPublication,
+  deleteContentItem,
+  fetchCreativeAssets,
+  generateContentItem,
+  generateCreativeAsset,
+  updateContentItem,
+} from '../api/contentEngineClient';
 import { buildUtmLink } from '../utmLink';
-import type { ContentItem, VariationType } from '../types';
+import type { ContentItem, CreativeAsset, VariationType } from '../types';
 import { CONTENT_TYPE_LABELS, PLATFORM_LABELS, VARIATION_TYPE_LABELS } from '../types';
 
 const VARIATION_TYPE_VALUES = Object.keys(VARIATION_TYPE_LABELS) as VariationType[];
+// Mirrors api/content-engine/creative-assets.js's own APPROVAL_GATE_STATUSES
+// exactly — Generate Creative must only be offered once text content is
+// past authoring/review, so media is never generated against content that
+// may still be rewritten. The server re-enforces this independently; this
+// is only what decides whether the button renders.
+const CREATIVE_GATE_STATUSES: ContentItem['status'][] = ['approved', 'scheduled', 'published'];
 
 interface ContentItemPanelProps {
   item: ContentItem;
@@ -49,11 +62,42 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
   const [isSchedulingRepublish, setIsSchedulingRepublish] = useState(false);
   const [republishError, setRepublishError] = useState<string | null>(null);
   const [republishScheduled, setRepublishScheduled] = useState(false);
+  const [creativeAssets, setCreativeAssets] = useState<CreativeAsset[]>([]);
+  const [isGeneratingCreative, setIsGeneratingCreative] = useState(false);
+  const [creativeError, setCreativeError] = useState<string | null>(null);
 
   const isDirty = JSON.stringify(draftBody) !== JSON.stringify(item.body);
   const editable = item.status === 'draft' || item.status === 'review';
   const utmCampaign = campaign ?? item.campaigns;
   const contentCopy = buildContentCopy({ content_type: item.content_type, body: draftBody });
+  const canGenerateCreative = CREATIVE_GATE_STATUSES.includes(item.status);
+
+  // Loads this item's own existing creative assets once — a plain fetch
+  // scoped to item.id, mirroring the same "each component owns its own
+  // related data" pattern already used for content_publications elsewhere
+  // in this module.
+  useEffect(() => {
+    fetchCreativeAssets(item.id)
+      .then(setCreativeAssets)
+      .catch((err) => setCreativeError(err instanceof Error ? err.message : 'Failed to load creative assets.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+
+  const handleGenerateCreative = async () => {
+    setIsGeneratingCreative(true);
+    setCreativeError(null);
+    try {
+      // No new content_items row, no change to body/platform/content_type —
+      // this only creates a creative_assets row referencing item.id. See
+      // api/content-engine/creative-assets.js.
+      const asset = await generateCreativeAsset({ contentItemId: item.id, assetType: 'image' });
+      setCreativeAssets((prev) => [asset, ...prev]);
+    } catch (err) {
+      setCreativeError(err instanceof Error ? err.message : 'Creative generation failed.');
+    } finally {
+      setIsGeneratingCreative(false);
+    }
+  };
 
   const handleGenerateVariation = async () => {
     setIsGeneratingVariation(true);
@@ -275,6 +319,17 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
             <Repeat className="h-3.5 w-3.5" /> Republish
           </button>
         )}
+        {canGenerateCreative && (
+          <button
+            type="button"
+            disabled={isGeneratingCreative}
+            onClick={handleGenerateCreative}
+            className="flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            {isGeneratingCreative ? 'Generating…' : 'Generate Creative'}
+          </button>
+        )}
         {item.status !== 'published' && (
           <button type="button" onClick={handleDelete} className="ml-auto flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600">
             <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -362,6 +417,39 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {creativeError && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{creativeError}</p>}
+
+      {creativeAssets.length > 0 && (
+        <div className="mt-4 border-t border-navy-100 pt-4">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-navy-400">Creative Assets</p>
+          <div className="flex flex-wrap gap-3">
+            {creativeAssets.map((asset) => (
+              <div key={asset.id} className="w-28 shrink-0">
+                {asset.public_url ? (
+                  <a href={asset.public_url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-navy-100">
+                    <img src={asset.public_url} alt="Generated creative" className="h-28 w-28 object-cover" />
+                  </a>
+                ) : (
+                  <div className="flex h-28 w-28 items-center justify-center rounded-lg border border-navy-100 bg-navy-50 text-xs text-navy-400">
+                    No preview
+                  </div>
+                )}
+                {asset.public_url && (
+                  <a
+                    href={asset.public_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 flex items-center justify-center gap-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700"
+                  >
+                    <Download className="h-3 w-3" /> Download
+                  </a>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
