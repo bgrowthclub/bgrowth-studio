@@ -34,6 +34,7 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
   const brandLines = [
     `Brand: ${brandProfile.name}${brandProfile.tagline ? ` — "${brandProfile.tagline}"` : ''}`,
     `Write in: ${resolvedLanguage}`,
+    'Do not translate product names, BGrowth trademarks, or branded product terminology (e.g. "Business System™", "Planner™", "Workflow™") unless a translation is genuinely more natural for a native speaker of that language — when in doubt, keep the branded term as-is.',
     brandProfile.tone_voice && Object.keys(brandProfile.tone_voice).length
       ? `Tone/voice rules: ${JSON.stringify(brandProfile.tone_voice)}`
       : null,

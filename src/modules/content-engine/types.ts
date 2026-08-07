@@ -5,7 +5,7 @@ export type ContentItemStatus = 'draft' | 'review' | 'approved' | 'scheduled' | 
  * only the app-layer set of choices the New Campaign select currently
  * offers; adding a language later is a new union member + label, no schema
  * change (see api/_lib/contentEngine/promptBuilder.js's resolution logic). */
-export type Language = 'en-US';
+export type Language = 'en-US' | 'pt-BR' | 'es';
 
 export interface BrandProfile {
   id: number;
@@ -84,6 +84,8 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
 
 export const LANGUAGE_LABELS: Record<Language, string> = {
   'en-US': 'English',
+  'pt-BR': 'Portuguese',
+  es: 'Spanish',
 };
 
 export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
