@@ -68,6 +68,24 @@ export async function createCampaign(input: {
   return campaign;
 }
 
+export async function updateCampaign(input: {
+  id: string;
+  name?: string;
+  goal?: string | null;
+  audience?: string | null;
+  language?: string | null;
+  channels?: Platform[];
+  strategyId?: string;
+}): Promise<Campaign> {
+  const res = await fetch('/api/content-engine/campaigns', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const { campaign } = await parseOrThrow<{ campaign: Campaign }>(res);
+  return campaign;
+}
+
 export async function fetchContentItems(campaignId?: string): Promise<ContentItem[]> {
   const qs = campaignId ? `?campaignId=${encodeURIComponent(campaignId)}` : '';
   const res = await fetch(`/api/content-engine/content-items${qs}`);

@@ -21,7 +21,7 @@ function slugifyForUtm(value) {
  */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
@@ -99,6 +99,88 @@ export default async function handler(req, res) {
       .single();
     if (error) return res.status(500).json({ error: error.message });
     return res.status(201).json({ campaign: data });
+  }
+
+  // Editing a campaign after creation — Workspace/product_id/product_slug/
+  // utm_campaign/id are never accepted here, even if sent: `update` is built
+  // field-by-field from an explicit allowlist, never a spread of req.body,
+  // so those stay a permanent creation-time snapshot (see the handler-level
+  // comment above). Only the six fields below can change, and only future
+  // generate.js calls read the new values — an existing content_items row
+  // was already written at generation time and is never revisited here.
+  if (req.method === 'PATCH') {
+    const { id, name, goal, audience, language, channels, strategyId } = req.body ?? {};
+    if (!id) return res.status(400).json({ error: 'id is required.' });
+
+    const update = {};
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'name cannot be empty.' });
+      }
+      update.name = name.trim();
+    }
+
+    if (goal !== undefined) {
+      update.goal = typeof goal === 'string' && goal.trim() ? goal.trim() : null;
+    }
+
+    if (audience !== undefined) {
+      update.audience = typeof audience === 'string' && audience.trim() ? audience.trim() : null;
+    }
+
+    if (language !== undefined) {
+      // Deliberately no fixed-list check — same unconstrained-text
+      // convention as POST/promptBuilder.js, so a future language is a
+      // frontend-only addition (see types.ts's Language union comment).
+      update.language = typeof language === 'string' && language.trim() ? language.trim() : null;
+    }
+
+    if (channels !== undefined) {
+      // Only enforced when the caller is actually touching channels — a
+      // legacy campaign's channels=[] ("no restriction") must survive an
+      // edit that doesn't mention channels at all untouched (see the
+      // `channels === undefined` case above, which skips this branch
+      // entirely and leaves the column out of `update`).
+      if (!Array.isArray(channels) || channels.length === 0) {
+        return res.status(400).json({ error: 'channels must include at least one supported platform.' });
+      }
+      const invalidChannels = channels.filter((c) => !VALID_PLATFORMS.includes(c));
+      if (invalidChannels.length > 0) {
+        return res.status(400).json({
+          error: `channels contains unsupported platform(s): ${invalidChannels.join(', ')}. Must be one of: ${VALID_PLATFORMS.join(', ')}.`,
+        });
+      }
+      update.channels = [...new Set(channels)];
+    }
+
+    if (strategyId !== undefined) {
+      const { data: strategy, error: strategyError } = await supabase
+        .schema('content_engine')
+        .from('content_strategies')
+        .select('id')
+        .eq('id', strategyId)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (strategyError || !strategy) {
+        return res.status(400).json({ error: 'strategyId must reference an active content strategy.' });
+      }
+      update.strategy_id = strategyId;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: 'No editable fields supplied.' });
+    }
+
+    const { data, error } = await supabase
+      .schema('content_engine')
+      .from('campaigns')
+      .update(update)
+      .eq('id', id)
+      .select('*, content_strategies(id, key, name)')
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ campaign: data });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
