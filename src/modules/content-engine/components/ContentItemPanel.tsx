@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Trash2, Copy, Check, Sparkles } from 'lucide-react';
+import { Trash2, Copy, Check, Sparkles, Repeat } from 'lucide-react';
 import { ContentItemBody, buildContentCopy } from './ContentItemBody';
 import { StatusBadge } from './StatusBadge';
-import { deleteContentItem, generateContentItem, updateContentItem } from '../api/contentEngineClient';
+import { createPublication, deleteContentItem, generateContentItem, updateContentItem } from '../api/contentEngineClient';
 import { buildUtmLink } from '../utmLink';
 import type { ContentItem, VariationType } from '../types';
 import { CONTENT_TYPE_LABELS, PLATFORM_LABELS, VARIATION_TYPE_LABELS } from '../types';
@@ -44,6 +44,11 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
   const [isGeneratingVariation, setIsGeneratingVariation] = useState(false);
   const [variationError, setVariationError] = useState<string | null>(null);
   const [localVariations, setLocalVariations] = useState<ContentItem[]>([]);
+  const [showRepublishPicker, setShowRepublishPicker] = useState(false);
+  const [republishDate, setRepublishDate] = useState('');
+  const [isSchedulingRepublish, setIsSchedulingRepublish] = useState(false);
+  const [republishError, setRepublishError] = useState<string | null>(null);
+  const [republishScheduled, setRepublishScheduled] = useState(false);
 
   const isDirty = JSON.stringify(draftBody) !== JSON.stringify(item.body);
   const editable = item.status === 'draft' || item.status === 'review';
@@ -67,6 +72,26 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
       setVariationError(err instanceof Error ? err.message : 'Variation generation failed.');
     } finally {
       setIsGeneratingVariation(false);
+    }
+  };
+
+  const handleScheduleRepublish = async () => {
+    if (!republishDate) return;
+    setIsSchedulingRepublish(true);
+    setRepublishError(null);
+    try {
+      // No AI call, no new content_items row: this reuses item.id's exact
+      // existing body/platform/content_type by only creating a new
+      // content_publications occurrence — see content-items.js.
+      await createPublication({ contentItemId: item.id, scheduledAt: new Date(republishDate).toISOString() });
+      setShowRepublishPicker(false);
+      setRepublishDate('');
+      setRepublishScheduled(true);
+      setTimeout(() => setRepublishScheduled(false), 2500);
+    } catch (err) {
+      setRepublishError(err instanceof Error ? err.message : 'Failed to schedule republish.');
+    } finally {
+      setIsSchedulingRepublish(false);
     }
   };
 
@@ -179,6 +204,8 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
         <p className="mt-3 text-xs text-navy-400">Published {new Date(item.published_at).toLocaleString()}</p>
       )}
 
+      {republishScheduled && <p className="mt-3 text-xs font-semibold text-success">Republish scheduled.</p>}
+
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {editable && isDirty && (
           <button
@@ -239,6 +266,15 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
             <Sparkles className="h-3.5 w-3.5" /> Generate Variation
           </button>
         )}
+        {item.status === 'published' && !showRepublishPicker && (
+          <button
+            type="button"
+            onClick={() => setShowRepublishPicker(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50"
+          >
+            <Repeat className="h-3.5 w-3.5" /> Republish
+          </button>
+        )}
         {item.status !== 'published' && (
           <button type="button" onClick={handleDelete} className="ml-auto flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600">
             <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -280,6 +316,47 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
               onClick={() => {
                 setShowVariationPicker(false);
                 setVariationError(null);
+              }}
+              className="rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showRepublishPicker && (
+        <div className="mt-3 space-y-2 rounded-lg border border-navy-100 p-3">
+          <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-navy-400">Republish Content</label>
+          <p className="text-xs text-navy-400">
+            Platform: {PLATFORM_LABELS[item.platform]} · Content Type: {CONTENT_TYPE_LABELS[item.content_type]} (same as this item, not editable)
+          </p>
+          <div>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-navy-400">New Publication Date &amp; Time</label>
+            <input
+              type="datetime-local"
+              value={republishDate}
+              onChange={(e) => setRepublishDate(e.target.value)}
+              className="w-full rounded-lg border border-navy-100 px-3 py-2 text-sm outline-none focus:border-brand-500"
+            />
+          </div>
+          {republishError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{republishError}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={isSchedulingRepublish || !republishDate}
+              onClick={handleScheduleRepublish}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Repeat className="h-3.5 w-3.5" />
+              {isSchedulingRepublish ? 'Scheduling…' : 'Schedule Republish'}
+            </button>
+            <button
+              type="button"
+              disabled={isSchedulingRepublish}
+              onClick={() => {
+                setShowRepublishPicker(false);
+                setRepublishError(null);
               }}
               className="rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50 disabled:opacity-60"
             >

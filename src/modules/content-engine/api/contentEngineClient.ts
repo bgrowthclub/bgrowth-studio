@@ -1,4 +1,4 @@
-import type { BrandProfile, Campaign, ContentItem, ContentItemStatus, ContentStrategy, ContentType, Platform, PublishedProductSummary, VariationType } from '../types';
+import type { BrandProfile, Campaign, ContentItem, ContentItemStatus, ContentPublication, ContentStrategy, ContentType, Platform, PublishedProductSummary, VariationType } from '../types';
 
 async function parseOrThrow<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -111,6 +111,47 @@ export async function updateContentItem(input: {
 
 export async function deleteContentItem(id: string): Promise<void> {
   const res = await fetch(`/api/content-engine/content-items?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+}
+
+/**
+ * Phase 2E — the content_publications ledger, reached through this same
+ * endpoint's `?resource=publications` branch (see content-items.js). Never
+ * calls /api/content-engine/generate — Republish reuses the existing
+ * content_item's body as-is, no AI involved.
+ */
+export async function fetchPublications(contentItemId?: string): Promise<ContentPublication[]> {
+  const qs = contentItemId ? `&contentItemId=${encodeURIComponent(contentItemId)}` : '';
+  const res = await fetch(`/api/content-engine/content-items?resource=publications${qs}`);
+  const { publications } = await parseOrThrow<{ publications: ContentPublication[] }>(res);
+  return publications;
+}
+
+export async function createPublication(input: { contentItemId: string; scheduledAt: string }): Promise<ContentPublication> {
+  const res = await fetch('/api/content-engine/content-items?resource=publications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const { publication } = await parseOrThrow<{ publication: ContentPublication }>(res);
+  return publication;
+}
+
+export async function updatePublication(input: { id: string; scheduledAt: string }): Promise<ContentPublication> {
+  const res = await fetch('/api/content-engine/content-items?resource=publications', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const { publication } = await parseOrThrow<{ publication: ContentPublication }>(res);
+  return publication;
+}
+
+export async function cancelPublication(id: string): Promise<void> {
+  const res = await fetch(`/api/content-engine/content-items?resource=publications&id=${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 204) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || `Request failed (${res.status})`);

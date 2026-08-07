@@ -1,6 +1,15 @@
 export type Platform = 'instagram' | 'facebook' | 'tiktok';
 export type ContentType = 'caption' | 'carousel' | 'script' | 'hook_cta';
 export type ContentItemStatus = 'draft' | 'review' | 'approved' | 'scheduled' | 'published';
+/** Phase 2E — a publication OCCURRENCE's own status, deliberately a
+ * separate, smaller vocabulary from ContentItemStatus above: a content_item
+ * describes its own authoring lifecycle (draft/review/approved/scheduled/
+ * published), while a ContentPublication describes one publish/republish
+ * EVENT (scheduled or published). Keeping these distinct avoids the
+ * ambiguity of a published content_item that later gets a newly-scheduled
+ * republish — the content_item's own status stays 'published', unaffected. */
+export type PublicationStatus = 'scheduled' | 'published';
+export type PublicationType = 'original' | 'republish';
 /** campaigns.language is a plain, unconstrained text column — this union is
  * only the app-layer set of choices the New Campaign select currently
  * offers; adding a language later is a new union member + label, no schema
@@ -72,6 +81,34 @@ export interface ContentItem {
   /** Phase 2D — the display label of the variation type used (e.g. "Alternative Hook"), set alongside parent_content_item_id. Null otherwise. */
   variation_label: string | null;
   campaigns?: { id: string; name: string; product_slug: string; utm_campaign: string };
+}
+
+/**
+ * Phase 2E — one publish/republish EVENT for a content_item. Never a
+ * content_item itself: no body, no editable fields, nothing an admin
+ * authors here — it only records that this content was (or will be)
+ * published, when, and as which kind of occurrence. content_items is
+ * optionally nested (the GET endpoint joins it) purely for display —
+ * platform/content_type/campaign context to render a Calendar card without
+ * a second round-trip; never a substitute for fetching the real content
+ * item if it needs to be opened/edited.
+ */
+export interface ContentPublication {
+  id: string;
+  content_item_id: string;
+  publication_type: PublicationType;
+  status: PublicationStatus;
+  scheduled_at: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+  content_items?: {
+    id: string;
+    campaign_id: string;
+    platform: Platform;
+    content_type: ContentType;
+    campaigns?: { id: string; name: string; product_slug: string; utm_campaign: string };
+  };
 }
 
 // Mirrors portal.catalog_index's public-read columns Content Engine actually
