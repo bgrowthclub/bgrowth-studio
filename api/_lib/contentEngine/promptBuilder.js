@@ -26,8 +26,28 @@ import { CONTENT_SPECS, PLATFORM_LABELS } from './contentSpecs.js';
  *    yet simply omits this section, never blocks generation). Distinct
  *    from Strategy, which still decides how the message is framed
  *    regardless of platform.
+ *  - Source Content / Variation Instruction (Phase 2D, both optional and
+ *    only ever supplied together by generate.js): the existing content_item
+ *    being varied, and the selected fixed variation type's instruction
+ *    (see generate.js's VARIATION_TYPES — the one authoritative source for
+ *    that instruction text). Omitted entirely for a normal, non-variation
+ *    generation — every other section above is composed identically either
+ *    way, so a variation prompt is the same prompt plus these two extra
+ *    sections, never a competing/parallel prompt.
  */
-export function buildGenerationPrompt({ brandProfile, strategy, product, platform, contentType, goal, audience, language, platformGuidance }) {
+export function buildGenerationPrompt({
+  brandProfile,
+  strategy,
+  product,
+  platform,
+  contentType,
+  goal,
+  audience,
+  language,
+  platformGuidance,
+  sourceContent,
+  variationInstruction,
+}) {
   const spec = CONTENT_SPECS[contentType];
   if (!spec) {
     throw new Error(`Unknown content type "${contentType}".`);
@@ -66,6 +86,12 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
   const trimmedGoal = typeof goal === 'string' ? goal.trim() : '';
   const trimmedAudience = typeof audience === 'string' ? audience.trim() : '';
   const trimmedPlatformGuidance = typeof platformGuidance === 'string' ? platformGuidance.trim() : '';
+  const trimmedSourceContent = typeof sourceContent === 'string' ? sourceContent.trim() : '';
+  const trimmedVariationInstruction = typeof variationInstruction === 'string' ? variationInstruction.trim() : '';
+  // Both must be present — a partial/inconsistent call (only one supplied)
+  // falls back to normal-generation prompt behavior rather than emitting a
+  // half-instructed variation section.
+  const isVariation = Boolean(trimmedSourceContent && trimmedVariationInstruction);
 
   const productLines = [
     `Product name: ${product.name}`,
@@ -85,9 +111,14 @@ export function buildGenerationPrompt({ brandProfile, strategy, product, platfor
     trimmedAudience ? `--- CAMPAIGN AUDIENCE (this specific campaign's target) ---\n\n${trimmedAudience}` : null,
     '--- PRODUCT TO PROMOTE ---',
     productLines,
+    isVariation ? `--- SOURCE CONTENT (create a distinct variation of this — do not copy it verbatim) ---\n\n${trimmedSourceContent}` : null,
+    isVariation ? `--- VARIATION INSTRUCTION ---\n\n${trimmedVariationInstruction}` : null,
     '--- TASK ---',
     `Platform: ${platformLabel}`,
     trimmedPlatformGuidance ? `--- PLATFORM GUIDANCE (${platformLabel}) ---\n\n${trimmedPlatformGuidance}` : null,
+    isVariation
+      ? 'This is a variation task, not a first-time generation. Create a genuinely distinct alternate version of the source content above, following the variation instruction above. Preserve the accurate factual/product meaning of the source — do not introduce new claims or change what the product actually does. Do not simply copy or lightly rephrase the source content; make a meaningfully different execution as instructed. The output must still conform exactly to the JSON schema below.'
+      : null,
     spec.instruction,
     'Return ONLY valid JSON matching exactly this shape, no commentary:',
     spec.schema,

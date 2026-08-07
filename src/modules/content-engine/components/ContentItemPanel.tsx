@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Trash2, Copy, Check } from 'lucide-react';
+import { Trash2, Copy, Check, Sparkles } from 'lucide-react';
 import { ContentItemBody, buildContentCopy } from './ContentItemBody';
 import { StatusBadge } from './StatusBadge';
-import { deleteContentItem, updateContentItem } from '../api/contentEngineClient';
+import { deleteContentItem, generateContentItem, updateContentItem } from '../api/contentEngineClient';
 import { buildUtmLink } from '../utmLink';
-import type { ContentItem } from '../types';
-import { CONTENT_TYPE_LABELS, PLATFORM_LABELS } from '../types';
+import type { ContentItem, VariationType } from '../types';
+import { CONTENT_TYPE_LABELS, PLATFORM_LABELS, VARIATION_TYPE_LABELS } from '../types';
+
+const VARIATION_TYPE_VALUES = Object.keys(VARIATION_TYPE_LABELS) as VariationType[];
 
 interface ContentItemPanelProps {
   item: ContentItem;
@@ -19,6 +21,17 @@ interface ContentItemPanelProps {
  * through its approval lifecycle (draft -> review -> approved -> scheduled
  * -> published) — reused as-is by CampaignDetailView, ContentLibraryView,
  * and CalendarView rather than three copies of this logic.
+ *
+ * Phase 2D — also the one place a variation can be generated from an
+ * existing item. A newly generated variation is rendered by recursively
+ * mounting this same component (it's just another content_item, with the
+ * same full set of capabilities, including generating further variations
+ * from it) directly below the source card — self-contained here so no
+ * caller (CampaignDetailView/ContentLibraryView/CalendarView) needs new
+ * props or state to see the result immediately. On the next real fetch
+ * (e.g. a fresh page load), the new row is already a completely ordinary,
+ * independent content_items row and appears in its normal place in that
+ * flat list — this local rendering is only a same-session convenience.
  */
 export function ContentItemPanel({ item, campaign, onChange, onDeleted }: ContentItemPanelProps) {
   const [draftBody, setDraftBody] = useState(item.body);
@@ -26,11 +39,36 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [contentCopied, setContentCopied] = useState(false);
+  const [showVariationPicker, setShowVariationPicker] = useState(false);
+  const [variationType, setVariationType] = useState<VariationType>(VARIATION_TYPE_VALUES[0]);
+  const [isGeneratingVariation, setIsGeneratingVariation] = useState(false);
+  const [variationError, setVariationError] = useState<string | null>(null);
+  const [localVariations, setLocalVariations] = useState<ContentItem[]>([]);
 
   const isDirty = JSON.stringify(draftBody) !== JSON.stringify(item.body);
   const editable = item.status === 'draft' || item.status === 'review';
   const utmCampaign = campaign ?? item.campaigns;
   const contentCopy = buildContentCopy({ content_type: item.content_type, body: draftBody });
+
+  const handleGenerateVariation = async () => {
+    setIsGeneratingVariation(true);
+    setVariationError(null);
+    try {
+      const variation = await generateContentItem({
+        campaignId: item.campaign_id,
+        platform: item.platform,
+        contentType: item.content_type,
+        sourceContentItemId: item.id,
+        variationType,
+      });
+      setLocalVariations((prev) => [variation, ...prev]);
+      setShowVariationPicker(false);
+    } catch (err) {
+      setVariationError(err instanceof Error ? err.message : 'Variation generation failed.');
+    } finally {
+      setIsGeneratingVariation(false);
+    }
+  };
 
   const runUpdate = async (patch: Parameters<typeof updateContentItem>[0]) => {
     setIsSaving(true);
@@ -78,11 +116,17 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
   };
 
   return (
+    <>
     <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-card">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-lg bg-navy-50 px-2.5 py-1 text-xs font-bold text-navy-700">{PLATFORM_LABELS[item.platform]}</span>
           <span className="text-xs font-semibold text-navy-400">{CONTENT_TYPE_LABELS[item.content_type]}</span>
+          {item.parent_content_item_id && (
+            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-600">
+              Variation{item.variation_label ? ` · ${item.variation_label}` : ''}
+            </span>
+          )}
         </div>
         <StatusBadge status={item.status} />
       </div>
@@ -186,12 +230,79 @@ export function ContentItemPanel({ item, campaign, onChange, onDeleted }: Conten
             Mark Published
           </button>
         )}
+        {!showVariationPicker && (
+          <button
+            type="button"
+            onClick={() => setShowVariationPicker(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> Generate Variation
+          </button>
+        )}
         {item.status !== 'published' && (
           <button type="button" onClick={handleDelete} className="ml-auto flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600">
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </button>
         )}
       </div>
+
+      {showVariationPicker && (
+        <div className="mt-3 space-y-2 rounded-lg border border-navy-100 p-3">
+          <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-navy-400">Variation Type</label>
+          <p className="text-xs text-navy-400">
+            Platform: {PLATFORM_LABELS[item.platform]} · Content Type: {CONTENT_TYPE_LABELS[item.content_type]} (inherited from this item, not editable)
+          </p>
+          <select
+            value={variationType}
+            onChange={(e) => setVariationType(e.target.value as VariationType)}
+            className="w-full rounded-lg border border-navy-100 px-3 py-2 text-sm outline-none focus:border-brand-500"
+          >
+            {VARIATION_TYPE_VALUES.map((value) => (
+              <option key={value} value={value}>
+                {VARIATION_TYPE_LABELS[value]}
+              </option>
+            ))}
+          </select>
+          {variationError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{variationError}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={isGeneratingVariation}
+              onClick={handleGenerateVariation}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {isGeneratingVariation ? 'Generating…' : 'Generate Variation'}
+            </button>
+            <button
+              type="button"
+              disabled={isGeneratingVariation}
+              onClick={() => {
+                setShowVariationPicker(false);
+                setVariationError(null);
+              }}
+              className="rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+
+    {localVariations.length > 0 && (
+      <div className="mt-3 space-y-3 border-l-2 border-brand-100 pl-3">
+        {localVariations.map((variation) => (
+          <ContentItemPanel
+            key={variation.id}
+            item={variation}
+            campaign={campaign}
+            onChange={(updated) => setLocalVariations((prev) => prev.map((v) => (v.id === updated.id ? updated : v)))}
+            onDeleted={(id) => setLocalVariations((prev) => prev.filter((v) => v.id !== id))}
+          />
+        ))}
+      </div>
+    )}
+    </>
   );
 }

@@ -6,6 +6,11 @@ export type ContentItemStatus = 'draft' | 'review' | 'approved' | 'scheduled' | 
  * offers; adding a language later is a new union member + label, no schema
  * change (see api/_lib/contentEngine/promptBuilder.js's resolution logic). */
 export type Language = 'en-US' | 'pt-BR' | 'es';
+/** Phase 2D — the fixed set of variation types the Generate Variation picker
+ * offers. Labels only: the actual prompt instruction text for each type is
+ * authoritative server-side, in api/content-engine/generate.js's
+ * VARIATION_TYPES — never duplicated here. */
+export type VariationType = 'alternative_hook' | 'alternative_angle' | 'shorter' | 'more_educational' | 'more_direct' | 'alternative_cta';
 
 export interface BrandProfile {
   id: number;
@@ -62,6 +67,10 @@ export interface ContentItem {
   generated_by_model: string | null;
   created_at: string;
   updated_at: string;
+  /** Phase 2D — set only on a variation, pointing at the content_item it's an alternate execution of. Null for every original/first-time generation. */
+  parent_content_item_id: string | null;
+  /** Phase 2D — the display label of the variation type used (e.g. "Alternative Hook"), set alongside parent_content_item_id. Null otherwise. */
+  variation_label: string | null;
   campaigns?: { id: string; name: string; product_slug: string; utm_campaign: string };
 }
 
@@ -101,4 +110,13 @@ export const STATUS_LABELS: Record<ContentItemStatus, string> = {
   approved: 'Approved',
   scheduled: 'Scheduled',
   published: 'Published',
+};
+
+export const VARIATION_TYPE_LABELS: Record<VariationType, string> = {
+  alternative_hook: 'Alternative Hook',
+  alternative_angle: 'Alternative Angle',
+  shorter: 'Shorter Version',
+  more_educational: 'More Educational',
+  more_direct: 'More Direct',
+  alternative_cta: 'Alternative CTA',
 };

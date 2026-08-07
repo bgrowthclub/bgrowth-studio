@@ -1,4 +1,4 @@
-import type { BrandProfile, Campaign, ContentItem, ContentItemStatus, ContentStrategy, ContentType, Platform, PublishedProductSummary } from '../types';
+import type { BrandProfile, Campaign, ContentItem, ContentItemStatus, ContentStrategy, ContentType, Platform, PublishedProductSummary, VariationType } from '../types';
 
 async function parseOrThrow<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -121,6 +121,9 @@ export async function generateContentItem(input: {
   campaignId: string;
   platform: Platform;
   contentType: ContentType;
+  /** Phase 2D — when set, this call generates a variation of an existing content_item instead of a first-time piece of content. The server always derives platform/contentType from the source item itself and ignores these two fields in that case — see generate.js. */
+  sourceContentItemId?: string;
+  variationType?: VariationType;
 }): Promise<ContentItem> {
   const res = await fetch('/api/content-engine/generate', {
     method: 'POST',
