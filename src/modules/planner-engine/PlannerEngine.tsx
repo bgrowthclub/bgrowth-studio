@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import {
-  BookOpen, LayoutGrid, Star, Trash2, Plus,
-  ChevronRight, Layers, Settings, Link, Check,
+  BookOpen, Star, Trash2, Plus,
+  Layers, Link, Check,
   Copy, Edit2, Eye, Download, Upload
 } from 'lucide-react';
 import { PlannerBuilder } from './PlannerBuilder';
 import { PlannerFill } from './PlannerFill';
 import {
-  loadPlanners, savePlanners, emptyPlanner,
+  loadPlanners, savePlanners, emptyPlanner, normalizePlanner,
   type PlannerConfig,
 } from './types';
 import { PLANNER_TEMPLATES } from './configs/templates';
@@ -16,6 +16,7 @@ import { Toast } from '../../components/Toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { gasGetPlanners, gasSavePlanners } from '../../lib/studioSync';
 import { ImportPlannerJsonModal } from './ImportPlannerJsonModal';
+import { applyBrandTheme } from '../../engine/theme';
 
 type SidebarView = 'my-planners' | 'templates' | 'favorites' | 'trash';
 type ActiveScreen = 'list' | 'builder' | 'fill';
@@ -23,19 +24,30 @@ type ActiveScreen = 'list' | 'builder' | 'fill';
 interface PlannerEngineProps {
   ownerEmail: string;
   initialPlannerId?: string;
+  /**
+   * True only for the public ?planner=ID route (see App.tsx). Renders
+   * exclusively the Fill experience for that one planner — never the
+   * Sidebar/Toolbar/list/builder — and never gives a public visitor a
+   * path back into any Studio navigation (PlannerFill's Back button is
+   * hidden by omitting onBack). Also applies the planner's own branding
+   * via applyBrandTheme(), instead of Studio's own default brand.
+   */
+  isPublic?: boolean;
 }
 
-export function PlannerEngine({ ownerEmail, initialPlannerId }: PlannerEngineProps) {
+export function PlannerEngine({ ownerEmail, initialPlannerId, isPublic }: PlannerEngineProps) {
   const [planners, setPlanners] = useState<PlannerConfig[]>(() => loadPlanners());
+  const [isLoadingPublicPlanner, setIsLoadingPublicPlanner] = useState(!!isPublic);
 
   // Load from GAS on mount
   useEffect(() => {
     gasGetPlanners(ownerEmail || 'benterprisesusa@gmail.com').then(gasPlanners => {
       if (gasPlanners.length > 0) {
-        setPlanners(gasPlanners);
-        savePlanners(gasPlanners);
+        const normalized = gasPlanners.map(normalizePlanner);
+        setPlanners(normalized);
+        savePlanners(normalized);
       }
-    });
+    }).finally(() => setIsLoadingPublicPlanner(false));
   }, [ownerEmail]);
 
   const [sidebarView, setSidebarView] = useState<SidebarView>('my-planners');
@@ -54,6 +66,17 @@ export function PlannerEngine({ ownerEmail, initialPlannerId }: PlannerEnginePro
     }
   }, [planners, initialPlannerId, activePlanner]);
 
+  // Public route branding: the planner's own primaryColor, not Studio's
+  // default brand. Reuses the existing applyBrandTheme() infrastructure
+  // (already used by Checklist's own public route) — no new branding
+  // system introduced.
+  useEffect(() => {
+    if (isPublic && activePlanner) {
+      applyBrandTheme(activePlanner.settings.primaryColor);
+      document.title = `${activePlanner.settings.name} | BGrowth`;
+    }
+  }, [isPublic, activePlanner]);
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
@@ -65,11 +88,14 @@ export function PlannerEngine({ ownerEmail, initialPlannerId }: PlannerEnginePro
   };
 
   const handleImportPlanner = (plannerData: any) => {
-    const imported = {
+    // normalizePlanner() handles both a flat legacy blocks[] JSON export
+    // and an already-canonical sections[] export — either way, the
+    // imported planner joins `planners` already in the canonical shape.
+    const imported = normalizePlanner({
       ...plannerData,
       id: `p-${Date.now()}`,
       isTemplate: false,
-    };
+    });
     const updated = [imported, ...planners];
     setPlanners(updated);
     savePlanners(updated);
@@ -158,6 +184,33 @@ export function PlannerEngine({ ownerEmail, initialPlannerId }: PlannerEnginePro
     setScreen('list');
     showToast('Planner saved ✓');
   };
+
+  // ---- Public planner route (?planner=ID) ----
+  // Isolated from every other branch below: a public visitor never sees
+  // the Sidebar, Toolbar, "My Planners"/Templates/Favorites/Trash list,
+  // or the Builder — only the Fill experience for this one planner, with
+  // no path back into any of that (PlannerFill's Back button is hidden
+  // by omitting onBack). Returning early here, before the normal
+  // list/builder/fill screen switch, is what fixes the previous bug
+  // where clicking "Back" from a public planner could land on the full
+  // Studio planner dashboard.
+  if (isPublic) {
+    if (!activePlanner) {
+      return (
+        <div className="flex h-screen flex-col items-center justify-center gap-3 bg-[#f4f6fb] text-center">
+          {isLoadingPublicPlanner ? (
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+          ) : (
+            <>
+              <p className="text-lg font-bold text-navy-800">Planner not found</p>
+              <p className="text-sm text-navy-400">This link may be invalid or the planner is no longer available.</p>
+            </>
+          )}
+        </div>
+      );
+    }
+    return <PlannerFill planner={activePlanner} />;
+  }
 
   // ---- Builder screen ----
   if (screen === 'builder' && activePlanner) {
@@ -340,7 +393,7 @@ export function PlannerEngine({ ownerEmail, initialPlannerId }: PlannerEnginePro
                       <p className="text-xs text-navy-400 line-clamp-2">{template.settings.description}</p>
                       <div className="mt-2 flex flex-wrap gap-1">
                         <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700">{template.settings.category}</span>
-                        <span className="rounded-full bg-navy-100 px-2 py-0.5 text-[10px] text-navy-500">{template.blocks.length} blocks</span>
+                        <span className="rounded-full bg-navy-100 px-2 py-0.5 text-[10px] text-navy-500">{template.sections.reduce((n, s) => n + s.blocks.length, 0)} blocks</span>
                       </div>
                       <button type="button" onClick={() => handleFromTemplate(template)}
                         className="mt-3 flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:bg-brand-600">

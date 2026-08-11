@@ -10,7 +10,7 @@ import { GripVertical, Trash2, Plus, ChevronDown, ChevronUp, X } from 'lucide-re
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
-import { newId, FormFieldType } from './types';
+import { newId, type FormFieldType } from './types';
 import { cn } from '../../lib/utils';
 
 // -----------------------------------------------------------------------

@@ -1,7 +1,11 @@
-import type { PlannerConfig } from '../types';
+import type { LegacyFlatPlannerConfig } from '../types';
 import { newId } from '../types';
 
-export const businessStartupPlanner: PlannerConfig = {
+// Phase 1: templates are still authored in the legacy flat blocks[] shape
+// (see LegacyFlatPlannerConfig's own doc comment) — normalized into the
+// canonical sections[] shape once, in ../configs/templates.ts, so every
+// consumer of PLANNER_TEMPLATES already receives a real PlannerConfig.
+export const businessStartupPlanner: LegacyFlatPlannerConfig = {
   id: 'template-business-startup',
   isTemplate: true,
   templateName: 'Business Startup Planner',
