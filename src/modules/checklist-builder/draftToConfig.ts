@@ -50,8 +50,8 @@ export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
     },
     footer: {
       proTip: 'Complete all sections for the most accurate recordkeeping.',
-      helpText: 'Visit bgrowthclub.com for resources and support.',
-      helpUrl: 'https://bgrowthclub.com',
+      helpText: 'Visit portal.bgrowth.app for resources and support.',
+      helpUrl: 'https://portal.bgrowth.app',
     },
     sections: draft.sections.map((s, i) => draftSectionToConfig(s, i)),
     // Round-trips cover image/description/price/currency/trial config/
