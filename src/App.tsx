@@ -59,7 +59,7 @@ function PublicFill({ templateId }: { templateId: string }) {
         const parsed = JSON.parse(configJson) as ChecklistConfig;
         setConfig(parsed);
         applyBrandTheme(parsed.brand.primaryColor);
-        document.title = `${parsed.brand.name} | BGrowth Club`;
+        document.title = `${parsed.brand.name} | BGrowth`;
       })
       .catch(() => setError('Checklist not found or unavailable.'))
       .finally(() => setLoading(false));
@@ -204,7 +204,7 @@ function PublicFillInner({ config, storageId }: { config: ChecklistConfig; stora
 // -----------------------------------------------------------------------
 function PublicCalcFill({ calcId }: { calcId: string }) {
   useEffect(() => {
-    document.title = 'Calculator | BGrowth Club';
+    document.title = 'Calculator | BGrowth';
   }, [calcId]);
 
   return (
