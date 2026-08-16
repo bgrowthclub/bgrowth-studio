@@ -43,7 +43,7 @@ export function PublicFillApp({ templateId }: PublicFillAppProps) {
         setConfig(parsed);
         applyBrandTheme(parsed.brand.primaryColor);
         // Set page title to the checklist name
-        document.title = `${parsed.brand.name} | BGrowth Club`;
+        document.title = `${parsed.brand.name} | BGrowth`;
       })
       .catch(() => setError('Checklist not found or unavailable.'))
       .finally(() => setLoading(false));
