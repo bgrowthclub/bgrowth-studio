@@ -18,10 +18,10 @@ function getCompanyInfo(config: ChecklistConfig) {
     const raw = localStorage.getItem('bgrowth.checklist-builder.settings');
     const settings = raw ? JSON.parse(raw) : null;
     return {
-      name: settings?.companyName || config.brand.companyLabel || 'BGrowth Club',
+      name: settings?.companyName || config.brand.companyLabel || 'BGrowth',
       logo: settings?.logoUrl ?? null,
     };
-  } catch { return { name: config.brand.companyLabel || 'BGrowth Club', logo: null }; }
+  } catch { return { name: config.brand.companyLabel || 'BGrowth', logo: null }; }
 }
 
 // Purpose text overrides for Notary checklists matching the user's high-fidelity layout
@@ -138,7 +138,7 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
         </div>
 
         {/* Branding — public link shows only the buyer's typed company name (no logo);
-            logged-in Studio shows the configured logo, or the BGrowth Club default */}
+            logged-in Studio shows the configured logo, or the BGrowth default */}
         {isPublic ? (
           <div className="text-right text-[10px] text-slate-500 font-semibold">
             {companyName}
@@ -503,7 +503,7 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
       <div className="border-t border-slate-200 pt-1 mt-4 flex justify-between items-center text-[9px] font-extrabold">
         <span className="text-slate-800 uppercase tracking-tight">{companyName}</span>
         <span className="text-slate-400 font-normal">Generated on {today} • {isBlank ? 'Blank Form' : `${percent}% complete`}</span>
-        <span className="text-[#1061EC] lowercase">bgrowthclub.com</span>
+        <span className="text-[#1061EC] lowercase">portal.bgrowth.app</span>
       </div>
     </div>
   );
