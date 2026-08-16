@@ -23,7 +23,7 @@ export function loadSettings(ownerEmail: string): BuilderSettings {
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return {
-    companyName: 'BGrowth Club',
+    companyName: 'BGrowth',
     ownerEmail,
     defaultColor: '#1061EC',
     logoUrl: null,
@@ -108,7 +108,7 @@ export function SettingsScreen({ ownerEmail, onBack }: SettingsScreenProps) {
                 <label className="mb-1.5 block text-sm font-medium text-navy-700">Company Name</label>
                 <Input
                   value={settings.companyName}
-                  placeholder="BGrowth Club"
+                  placeholder="BGrowth"
                   onChange={(e) => setSettings((s) => ({ ...s, companyName: e.target.value }))}
                 />
               </div>

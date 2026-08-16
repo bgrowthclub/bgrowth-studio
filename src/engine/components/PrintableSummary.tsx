@@ -157,7 +157,7 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
             )}
             <div className="flex flex-col leading-none">
               <span className="text-[12.5px] font-extrabold tracking-tight text-[#0b1d3a]">
-                {logoUrl ? companyName : (<>BGrowth <span className="text-[#1061EC]">Club</span></>)}
+                {logoUrl ? companyName : 'BGrowth'}
               </span>
               {!logoUrl && (
                 <span className="text-[6.5px] text-gray-400 uppercase tracking-widest font-semibold">Business Growth</span>

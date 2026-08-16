@@ -19,10 +19,8 @@ export function ChecklistBuilderApp({ ownerEmail, embedded }: ChecklistBuilderAp
     <div className="flex h-screen flex-col overflow-hidden font-sans">
       <header className="flex items-center gap-3 border-b border-navy-100 bg-white px-4 py-2.5 sm:px-6">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.jpg" alt="BGrowth Club" className="h-9 w-9 rounded-lg object-cover" />
-          <span className="text-[15px] font-bold text-navy-800">
-            BGrowth <span className="text-brand">Club</span>
-          </span>
+          <img src="/logo.jpg" alt="BGrowth" className="h-9 w-9 rounded-lg object-cover" />
+          <span className="text-[15px] font-bold text-navy-800">BGrowth</span>
         </div>
         <span className="text-navy-200">·</span>
         <span className="text-[14px] font-semibold text-navy-600">Checklist Builder</span>

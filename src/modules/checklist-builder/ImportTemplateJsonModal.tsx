@@ -20,7 +20,7 @@ export function ImportTemplateJsonModal({ isOpen, onClose, onImport }: ImportTem
       productId: "checklist-custom-import-example",
       brand: {
         name: "Inspeção de Segurança Exemplo",
-        companyLabel: "BGrowth Club",
+        companyLabel: "BGrowth",
         primaryColor: "#E11D48"
       },
       footer: {
@@ -94,7 +94,7 @@ export function ImportTemplateJsonModal({ isOpen, onClose, onImport }: ImportTem
 
       const normalized = {
         ...parsed,
-        brand: parsed.brand ?? { name, companyLabel: 'BGrowth Club', primaryColor: '#1061EC' },
+        brand: parsed.brand ?? { name, companyLabel: 'BGrowth', primaryColor: '#1061EC' },
         sections: normalizedSections,
       };
 
