@@ -45,7 +45,7 @@ export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
     productId: draft.templateId ?? `draft-${Date.now()}`,
     brand: {
       name: draft.name || 'Untitled Checklist',
-      companyLabel: 'BGrowth Club',
+      companyLabel: 'BGrowth',
       primaryColor: draft.primaryColor,
     },
     footer: {
