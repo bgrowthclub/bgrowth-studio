@@ -1,16 +1,17 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X, Archive, ShieldCheck } from 'lucide-react';
+import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X, Archive, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { ModuleHeader } from './ModuleHeader';
 import { SectionEditor } from './SectionEditor';
 import { LivePreview } from './LivePreview';
 import { TemplateImportModal } from './TemplateImportModal';
 import { TemplateIntegrityModal } from './TemplateIntegrityModal';
+import { EmptyState } from './EmptyState';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { PrimaryButton, SecondaryButton } from '../../components/ui/Button';
@@ -20,7 +21,7 @@ import { api_saveTemplate } from './api';
 import { draftToConfig, draftToConfigJson } from './draftToConfig';
 import type { BuilderDraft, DraftSection } from './builderTypes';
 import { BRAND_COLOR_PRESETS, TRIAL_UNIT_OPTIONS } from './builderTypes';
-import type { SectionType } from '../../engine/types';
+import type { SectionType, ChecklistConfig } from '../../engine/types';
 import { cn, compressImage, newKey } from '../../lib/utils';
 import { publishToPortal, archiveProduct, slugifyProductName } from '../../lib/publishingEngine';
 import { loadSettings } from './SettingsScreen';
@@ -387,7 +388,24 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
     }
   };
 
-  const liveConfig = draftToConfig(draft);
+  // draftToConfig() now throws for a section with an unrecognized type
+  // (see draftToConfig.ts) instead of silently corrupting it — correct for
+  // Save/Publish, which already catch and toast it, but this render-time
+  // call has no such boundary above it, so a bad section would otherwise
+  // crash the whole Builder screen on every keystroke. Fall back to the
+  // last successfully-computed config instead so editing (and fixing the
+  // offending section) stays possible.
+  const [liveConfig, setLiveConfig] = useState<ChecklistConfig | null>(null);
+  const [livePreviewError, setLivePreviewError] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setLiveConfig(draftToConfig(draft));
+      setLivePreviewError(null);
+    } catch (e) {
+      setLivePreviewError(e instanceof Error ? e.message : 'This template has an invalid section.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
   const sectionCount = draft.sections.length;
 
   return (
@@ -744,7 +762,15 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         {/* RIGHT — Live Preview (desktop only unless toggled) */}
         {showPreview && (
           <div className="hidden flex-1 lg:flex lg:flex-col">
-            <LivePreview config={liveConfig} />
+            {liveConfig ? (
+              <LivePreview config={liveConfig} />
+            ) : (
+              <EmptyState
+                icon={<AlertTriangle />}
+                title="Preview unavailable"
+                description={livePreviewError ?? 'This template has an invalid section.'}
+              />
+            )}
           </div>
         )}
       </div>

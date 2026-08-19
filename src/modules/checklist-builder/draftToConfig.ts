@@ -37,7 +37,22 @@ function draftSectionToConfig(s: DraftSection, index: number): SectionConfig {
     });
     return { ...base, type: 'outcome', items };
   }
-  return { ...base, type: 'notes' };
+  if (s.type === 'notes') {
+    return { ...base, type: 'notes' };
+  }
+
+  // Unrecognized type — never silently coerce this to 'notes'. That used to
+  // happen here (the fallback below every other branch), which silently
+  // dropped the section's fields/items and relabeled it, with no error and
+  // no trace, the moment a section's type was anything other than exactly
+  // 'form'/'checklist'/'outcome'. Fail loudly and explicitly instead, so a
+  // caller (Save Template, Publish — both already wrap draftToConfig in a
+  // try/catch and surface e.message via a toast) gets a clear, actionable
+  // error naming the exact section, instead of Studio quietly publishing
+  // content it silently rewrote.
+  throw new Error(
+    `Section "${s.title || s.id}" has an unrecognized type ("${String((s as { type?: unknown }).type)}") — expected "form", "checklist", "notes", or "outcome". Refusing to save/publish with corrupted section data.`
+  );
 }
 
 export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
