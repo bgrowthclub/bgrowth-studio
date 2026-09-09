@@ -18,6 +18,20 @@ import type { UploadedPhoto } from '../types';
 
 const MAX_PHOTOS = 10;
 
+// HEIC/HEIF decode isn't reliably supported by mobile Canvas/Image pipelines
+// (see compressImage in lib/utils.ts) — rejected explicitly, with a clear
+// message, rather than letting them fail deep inside compression. `accept`
+// on the <input> is a hint only (some mobile pickers ignore it entirely), so
+// this runtime check is the actual enforcement.
+const HEIC_MIME_TYPES = ['image/heic', 'image/heif'];
+
+// Generous, defensive-only ceiling — normal modern phone photos (even
+// high-megapixel camera JPEGs) are nowhere near this; it only guards against
+// the rare oversized file that would otherwise risk locking up the tab
+// during FileReader/Canvas work. Compression is always attempted first for
+// anything under it, rather than pre-rejecting based on a stricter guess.
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
 interface PhotoUploadStepProps {
   photos: UploadedPhoto[];
   onChangePhotos: (photos: UploadedPhoto[]) => void;
@@ -34,8 +48,22 @@ export function PhotoUploadStep({ photos, onChangePhotos, onContinue, isAnalyzin
 
   const addFiles = async (fileList: FileList | File[]) => {
     setProcessingError(null);
-    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
-    if (files.length === 0) return;
+    const imageFiles = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    const heicCount = imageFiles.filter((f) => HEIC_MIME_TYPES.includes(f.type.toLowerCase())).length;
+    const withoutHeic = imageFiles.filter((f) => !HEIC_MIME_TYPES.includes(f.type.toLowerCase()));
+    const oversizedCount = withoutHeic.filter((f) => f.size > MAX_FILE_SIZE_BYTES).length;
+    const files = withoutHeic.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
+
+    const notes: string[] = [];
+    if (heicCount > 0) notes.push("HEIC/HEIF photos aren't supported yet — please choose a JPG or PNG photo.");
+    if (oversizedCount > 0) notes.push(`${oversizedCount === 1 ? 'One photo is' : `${oversizedCount} photos are`} too large to upload.`);
+
+    if (files.length === 0) {
+      setProcessingError(notes.join(' ') || 'Could not process those photos.');
+      return;
+    }
 
     const room = MAX_PHOTOS - photos.length;
     if (room <= 0) {
@@ -57,8 +85,10 @@ export function PhotoUploadStep({ photos, onChangePhotos, onContinue, isAnalyzin
         })
       );
       onChangePhotos([...photos, ...toAdd]);
+      if (notes.length > 0) setProcessingError(notes.join(' '));
     } catch (err) {
-      setProcessingError(err instanceof Error ? err.message : 'Could not process one of those images.');
+      const readError = err instanceof Error ? err.message : "Couldn't read this photo. Please try selecting it again or choose a JPG/PNG stored on your device.";
+      setProcessingError([readError, ...notes].join(' '));
     }
   };
 
@@ -109,7 +139,7 @@ export function PhotoUploadStep({ photos, onChangePhotos, onContinue, isAnalyzin
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png"
           multiple
           className="hidden"
           onChange={(e) => {
