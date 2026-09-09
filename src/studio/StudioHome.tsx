@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound } from 'lucide-react';
+import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound, Camera } from 'lucide-react';
 import type { StudioTool } from './types';
 
 const TOOLS: StudioTool[] = [
@@ -75,6 +75,14 @@ const TOOLS: StudioTool[] = [
     color: '#0F172A',
     status: 'live',
   },
+  {
+    id: 'social-post-creator',
+    name: 'Social Post Creator',
+    description: 'Turn your own photos into a complete social media publication — carousel sequence, copy, and hashtags.',
+    icon: 'social-post-creator',
+    color: '#EA580C',
+    status: 'live',
+  },
 ];
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -88,6 +96,7 @@ const ICONS: Record<string, React.ReactNode> = {
 'knowledge-engine': <BookOpen className="h-7 w-7" />,
   'content-engine': <Megaphone className="h-7 w-7" />,
   'access-management': <KeyRound className="h-7 w-7" />,
+  'social-post-creator': <Camera className="h-7 w-7" />,
 };
 
 interface StudioHomeProps {

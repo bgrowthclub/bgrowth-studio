@@ -11,6 +11,7 @@ import { ProductEngine } from './modules/product-engine/ProductEngine';
 import { KnowledgeEngine } from './modules/knowledge-engine/KnowledgeEngine';
 import { ContentEngine } from './modules/content-engine/ContentEngine';
 import { AccessManagement } from './modules/access-management/AccessManagement';
+import { SocialPostCreator } from './modules/social-post-creator/SocialPostCreator';
 import { ProductHeader } from './components/ProductHeader';
 import { Sidebar } from './components/Sidebar';
 import { WorkflowAccordion } from './engine/components/WorkflowAccordion';
@@ -28,7 +29,7 @@ import { api_getTemplate } from './modules/checklist-builder/api';
 import { decompressString } from './lib/compress';
 import type { ChecklistConfig, ChecklistData } from './engine/types';
 
-type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine' | 'access-management';
+type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine' | 'access-management' | 'social-post-creator';
 
 const TOOL_NAMES: Record<string, string> = {
   checklist: 'Checklist Builder',
@@ -39,6 +40,7 @@ const TOOL_NAMES: Record<string, string> = {
   'knowledge-engine': 'Knowledge Engine',
   'content-engine': 'Content Engine',
   'access-management': 'Access Management',
+  'social-post-creator': 'Social Post Creator',
 };
 
 // -----------------------------------------------------------------------
@@ -224,7 +226,7 @@ export function App({ ownerEmail }: { ownerEmail: string }) {
   const [activeTool, setActiveTool] = useState<ActiveTool>(() => {
     if (window.location.pathname === '/studio/knowledge') return 'knowledge-engine';
     const tool = params.get('tool');
-    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine' || tool === 'access-management') return tool as ActiveTool;
+    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine' || tool === 'access-management' || tool === 'social-post-creator') return tool as ActiveTool;
     return null;
   });
 
@@ -289,6 +291,12 @@ export function App({ ownerEmail }: { ownerEmail: string }) {
   // Access Management Phase 1 audit for the exact reconnection steps).
   if (activeTool === 'access-management') return (
     <AccessManagement onHome={() => setActiveTool(null)} />
+  );
+
+  // Same Phase 1 no-auth posture as every other tool above — see the
+  // comment on access-management just above.
+  if (activeTool === 'social-post-creator') return (
+    <SocialPostCreator ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
   );
 
   if (activeTool) return (
