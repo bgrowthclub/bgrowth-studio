@@ -28,6 +28,20 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   linkedin: 'LinkedIn',
 };
 
+/** The language all AI-generated user-facing text is written in — a generation-language setting, not a translation system (see promptBuilder.js). */
+export type ContentLanguage = 'en' | 'pt-BR' | 'es' | 'fr' | 'it' | 'de';
+
+export const DEFAULT_CONTENT_LANGUAGE: ContentLanguage = 'en';
+
+export const CONTENT_LANGUAGE_LABELS: Record<ContentLanguage, string> = {
+  en: 'English',
+  'pt-BR': 'Português (Brasil)',
+  es: 'Español',
+  fr: 'Français',
+  it: 'Italiano',
+  de: 'Deutsch',
+};
+
 export type SlideRole =
   | 'cover'
   | 'product_detail'

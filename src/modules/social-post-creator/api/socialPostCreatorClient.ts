@@ -1,4 +1,4 @@
-import type { CopyTarget, GeneratedCopy, HashtagGroups, PhotoAnalysis, PostObjective, Platform } from '../types';
+import type { ContentLanguage, CopyTarget, GeneratedCopy, HashtagGroups, PhotoAnalysis, PostObjective, Platform } from '../types';
 
 async function parseOrThrow<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -21,8 +21,8 @@ export interface AnalyzedImage {
   data: string;
 }
 
-export async function analyzePhotos(images: AnalyzedImage[]): Promise<PhotoAnalysis> {
-  const { analysis } = await post<{ analysis: PhotoAnalysis }>('analyze-photos', { images });
+export async function analyzePhotos(images: AnalyzedImage[], language: ContentLanguage): Promise<PhotoAnalysis> {
+  const { analysis } = await post<{ analysis: PhotoAnalysis }>('analyze-photos', { images, language });
   return analysis;
 }
 
@@ -38,6 +38,7 @@ export async function generateCarousel(input: {
   customObjective?: string;
   platform: Platform;
   photoCount: number;
+  language: ContentLanguage;
 }): Promise<RawCarouselSlide[]> {
   const { slides } = await post<{ slides: RawCarouselSlide[] }>('generate-carousel', input);
   return slides;
@@ -50,6 +51,7 @@ export async function generateCopy(input: {
   platform: Platform;
   target: CopyTarget;
   existing?: Partial<GeneratedCopy>;
+  language: ContentLanguage;
 }): Promise<Partial<GeneratedCopy>> {
   const { copy } = await post<{ copy: Partial<GeneratedCopy> }>('generate-copy', input);
   return copy;
@@ -60,6 +62,7 @@ export async function generateHashtags(input: {
   objective: PostObjective;
   customObjective?: string;
   platform: Platform;
+  language: ContentLanguage;
 }): Promise<HashtagGroups> {
   const { hashtags } = await post<{ hashtags: HashtagGroups }>('generate-hashtags', input);
   return hashtags;

@@ -27,6 +27,20 @@ export const PLATFORM_NOTES = {
     'Professional but human tone — no hype, minimal emoji. Frame around business value, expertise, or a concrete lesson. Hashtag strategy favors 3-5 professional/industry tags.',
 };
 
+// The language all AI-generated user-facing text is written in — a
+// generation-language setting, not a translation system. Keys match the
+// client's ContentLanguage union exactly (types.ts).
+export const CONTENT_LANGUAGE_LABELS = {
+  en: 'English',
+  'pt-BR': 'Português (Brasil)',
+  es: 'Español',
+  fr: 'Français',
+  it: 'Italiano',
+  de: 'Deutsch',
+};
+
+export const DEFAULT_CONTENT_LANGUAGE = 'en';
+
 export const POST_OBJECTIVE_LABELS = {
   sell_product: 'Sell a Product',
   present_product: 'Present a Product',

@@ -10,8 +10,10 @@ import { HashtagStep } from './steps/HashtagStep';
 import { PreviewStep } from './steps/PreviewStep';
 import { analyzePhotos, generateCarousel, generateCopy, generateHashtags } from './api/socialPostCreatorClient';
 import {
+  DEFAULT_CONTENT_LANGUAGE,
   WIZARD_STEPS,
   type CarouselSlide,
+  type ContentLanguage,
   type CopyTarget,
   type GeneratedCopy,
   type HashtagGroups,
@@ -72,6 +74,11 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
   const [objective, setObjective] = useState<PostObjective | null>(null);
   const [customObjective, setCustomObjective] = useState('');
   const [platform, setPlatform] = useState<Platform | null>(null);
+  const [language, setLanguage] = useState<ContentLanguage>(DEFAULT_CONTENT_LANGUAGE);
+  // Set whenever a generation call succeeds, to the language it was generated
+  // in — lets us flag "content is stale for the newly-selected language"
+  // without ever silently translating anything (see ObjectivePlatformStep).
+  const [generatedLanguage, setGeneratedLanguage] = useState<ContentLanguage | null>(null);
 
   const [slides, setSlides] = useState<CarouselSlide[]>([]);
   const [isCarouselLoading, setIsCarouselLoading] = useState(false);
@@ -121,6 +128,7 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setCarouselError(null);
     setCopyError(null);
     setHashtagsError(null);
+    setGeneratedLanguage(null);
   };
 
   const handleAnalyze = async () => {
@@ -128,7 +136,7 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setAnalyzeError(null);
     try {
       const images = photos.map((p) => ({ mimeType: 'image/jpeg', data: stripDataUrlPrefix(p.dataUrl) }));
-      const result = await analyzePhotos(images);
+      const result = await analyzePhotos(images, language);
       setAnalysis(result);
       setAnalyzedPhotos(photos);
       setStep('objective');
@@ -144,7 +152,7 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setIsCarouselLoading(true);
     setCarouselError(null);
     try {
-      const raw = await generateCarousel({ analysis, objective, customObjective, platform, photoCount: analyzedPhotos.length });
+      const raw = await generateCarousel({ analysis, objective, customObjective, platform, photoCount: analyzedPhotos.length, language });
       const nextSlides: CarouselSlide[] = raw.map((s) => ({
         _key: newKey('slide'),
         photoIndex: s.photoIndex,
@@ -153,6 +161,7 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
         text: s.suggestedText ?? '',
       }));
       setSlides(nextSlides);
+      setGeneratedLanguage(language);
     } catch (err) {
       setCarouselError(err instanceof Error ? err.message : 'Could not generate a carousel sequence.');
     } finally {
@@ -178,8 +187,10 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
         platform,
         target,
         existing: target === 'all' ? undefined : copy,
+        language,
       });
       setCopy((prev) => ({ ...prev, ...result }));
+      setGeneratedLanguage(language);
     } catch (err) {
       setCopyError(err instanceof Error ? err.message : 'Could not generate copy.');
     } finally {
@@ -198,8 +209,9 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setIsHashtagsLoading(true);
     setHashtagsError(null);
     try {
-      const result = await generateHashtags({ analysis, objective, customObjective, platform });
+      const result = await generateHashtags({ analysis, objective, customObjective, platform, language });
       setHashtags(result);
+      setGeneratedLanguage(language);
     } catch (err) {
       setHashtagsError(err instanceof Error ? err.message : 'Could not generate hashtags.');
     } finally {
@@ -222,6 +234,8 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setObjective(null);
     setCustomObjective('');
     setPlatform(null);
+    setLanguage(DEFAULT_CONTENT_LANGUAGE);
+    setGeneratedLanguage(null);
     setSlides([]);
     setCarouselError(null);
     setCopy(EMPTY_COPY);
@@ -333,9 +347,12 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
                 objective={objective}
                 customObjective={customObjective}
                 platform={platform}
+                language={language}
                 onChangeObjective={setObjective}
                 onChangeCustomObjective={setCustomObjective}
                 onChangePlatform={setPlatform}
+                onChangeLanguage={setLanguage}
+                languageChangedSinceGeneration={generatedLanguage !== null && generatedLanguage !== language}
                 onContinue={handleContinueToCarousel}
               />
             )}

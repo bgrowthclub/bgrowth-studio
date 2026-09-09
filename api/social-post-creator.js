@@ -18,6 +18,11 @@ import {
   buildCopyPrompt,
   buildHashtagsPrompt,
 } from './_lib/socialPostCreator/promptBuilder.js';
+import { DEFAULT_CONTENT_LANGUAGE, CONTENT_LANGUAGE_LABELS } from './_lib/socialPostCreator/contentSpecs.js';
+
+function normalizeLanguage(language) {
+  return language && CONTENT_LANGUAGE_LABELS[language] ? language : DEFAULT_CONTENT_LANGUAGE;
+}
 
 export const config = {
   api: {
@@ -30,7 +35,7 @@ export const config = {
 const MAX_PHOTOS = 10;
 
 async function handleAnalyzePhotos(req, res) {
-  const { images } = req.body ?? {};
+  const { images, language } = req.body ?? {};
   if (!Array.isArray(images) || images.length === 0) {
     return res.status(400).json({ ok: false, error: 'images (a non-empty array) is required.' });
   }
@@ -39,7 +44,7 @@ async function handleAnalyzePhotos(req, res) {
   }
 
   try {
-    const prompt = buildAnalysisPrompt({ photoCount: images.length });
+    const prompt = buildAnalysisPrompt({ photoCount: images.length, language: normalizeLanguage(language) });
     const { output } = await runImageAnalysis({
       taskType: 'social_post_creator_analyze_photos',
       images,
@@ -53,13 +58,13 @@ async function handleAnalyzePhotos(req, res) {
 }
 
 async function handleGenerateCarousel(req, res) {
-  const { analysis, objective, customObjective, platform, photoCount } = req.body ?? {};
+  const { analysis, objective, customObjective, platform, photoCount, language } = req.body ?? {};
   if (!analysis || !objective || !platform || !photoCount) {
     return res.status(400).json({ ok: false, error: 'analysis, objective, platform, and photoCount are required.' });
   }
 
   try {
-    const prompt = buildCarouselPrompt({ analysis, objective, customObjective, platform, photoCount });
+    const prompt = buildCarouselPrompt({ analysis, objective, customObjective, platform, photoCount, language: normalizeLanguage(language) });
     const { output } = await runGeneration({ taskType: 'social_post_creator_generate_carousel', prompt });
     return res.status(200).json({ ok: true, slides: output?.slides ?? [] });
   } catch (err) {
@@ -69,7 +74,7 @@ async function handleGenerateCarousel(req, res) {
 }
 
 async function handleGenerateCopy(req, res) {
-  const { analysis, objective, customObjective, platform, target, existing } = req.body ?? {};
+  const { analysis, objective, customObjective, platform, target, existing, language } = req.body ?? {};
   if (!analysis || !objective || !platform || !target) {
     return res.status(400).json({ ok: false, error: 'analysis, objective, platform, and target are required.' });
   }
@@ -78,7 +83,7 @@ async function handleGenerateCopy(req, res) {
   }
 
   try {
-    const prompt = buildCopyPrompt({ analysis, objective, customObjective, platform, target, existing });
+    const prompt = buildCopyPrompt({ analysis, objective, customObjective, platform, target, existing, language: normalizeLanguage(language) });
     const { output } = await runGeneration({ taskType: 'social_post_creator_generate_copy', prompt });
     return res.status(200).json({ ok: true, copy: output ?? {} });
   } catch (err) {
@@ -88,13 +93,13 @@ async function handleGenerateCopy(req, res) {
 }
 
 async function handleGenerateHashtags(req, res) {
-  const { analysis, objective, customObjective, platform } = req.body ?? {};
+  const { analysis, objective, customObjective, platform, language } = req.body ?? {};
   if (!analysis || !objective || !platform) {
     return res.status(400).json({ ok: false, error: 'analysis, objective, and platform are required.' });
   }
 
   try {
-    const prompt = buildHashtagsPrompt({ analysis, objective, customObjective, platform });
+    const prompt = buildHashtagsPrompt({ analysis, objective, customObjective, platform, language: normalizeLanguage(language) });
     const { output } = await runGeneration({ taskType: 'social_post_creator_generate_hashtags', prompt });
     return res.status(200).json({ ok: true, hashtags: output ?? {} });
   } catch (err) {
