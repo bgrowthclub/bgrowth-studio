@@ -54,6 +54,13 @@ export function CalculatorBuilder({ onBack, initialConfig, ownerEmail = 'benterp
     console.log('Load preset:', presetKey);
   };
 
+  const handleReset = () => {
+    if (confirm('Reset to default template?')) {
+      setConfig(DEFAULT_CONFIG);
+      setActiveStep(1);
+    }
+  };
+
   const handleGenerateAi = useCallback(async () => {
     const apiKey = localStorage.getItem('bgrowth.ai.apiKey');
     if (!apiKey) {
