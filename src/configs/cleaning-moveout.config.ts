@@ -12,7 +12,7 @@ export const cleaningMoveOutConfig: ChecklistConfig = {
   productId: 'cleaning-moveout-checklist',
   brand: {
     name: 'Move-Out Cleaning Inspection Checklist',
-    companyLabel: 'BGrowth Club',
+    companyLabel: 'BGrowth',
     primaryColor: '#0EA5A0', // teal, matches BGrowth Cleaning module branding
   },
   footer: {

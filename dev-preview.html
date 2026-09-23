@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PrintableSummary dev preview (not part of production)</title>
+  </head>
+  <body>
+    <!--
+      Dev-only isolated test harness for src/engine/components/PrintableSummary.tsx.
+      Not linked from anywhere in the app and not referenced by index.html —
+      only reachable via `npm run dev` + navigating to /dev-preview.html
+      directly, and not part of the production build's entry graph (Vite's
+      default build only processes index.html unless explicitly configured
+      otherwise, which this repo's vite.config.ts does not do). See
+      src/dev/PrintableSummaryDevPreview.tsx for details.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/dev/preview-main.tsx"></script>
+  </body>
+</html>

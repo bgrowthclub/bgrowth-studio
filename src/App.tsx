@@ -147,7 +147,10 @@ function PublicFillInner({ config, storageId }: { config: ChecklistConfig; stora
     setIsRenderBlank(true);
     setTimeout(async () => {
       try {
-        await downloadElementAsPdf(printableRef.current!, `${config.brand.name} - Blank.pdf`);
+        await downloadElementAsPdf(printableRef.current!, `${config.brand.name} - Blank.pdf`, {
+          pagebreakMode: ['css', 'legacy'],
+          margin: [5, 10, 5, 10],
+        });
         showToast('Blank PDF downloaded');
       } catch (err) {
         showToast('Error generating PDF');
@@ -175,8 +178,13 @@ function PublicFillInner({ config, storageId }: { config: ChecklistConfig; stora
           onDownloadPdf={async () => {
             if (!printableRef.current) return;
             setIsGeneratingPdf(true);
-            try { await downloadElementAsPdf(printableRef.current, `${config.brand.name}.pdf`); showToast('PDF downloaded'); }
-            finally { setIsGeneratingPdf(false); }
+            try {
+              await downloadElementAsPdf(printableRef.current, `${config.brand.name}.pdf`, {
+                pagebreakMode: ['css', 'legacy'],
+                margin: [5, 10, 5, 10],
+              });
+              showToast('PDF downloaded');
+            } finally { setIsGeneratingPdf(false); }
           }}
           onDownloadBlankPdf={handleDownloadBlankPdf}
           onReset={() => setResetDialogOpen(true)}

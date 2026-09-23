@@ -1,5 +1,6 @@
 import { Cloud, Printer, Download, RotateCcw } from 'lucide-react';
-import { SecondaryButton, PrimaryButton } from './ui/Button';
+import { SecondaryButton } from './ui/Button';
+import { Menu } from './ui/Menu';
 
 interface ProductHeaderProps {
   title: string;
@@ -14,6 +15,18 @@ interface ProductHeaderProps {
   isGeneratingBlankPdf?: boolean;
 }
 
+/**
+ * One grouped toolbar — [Save] [Print ▾] [PDF ▾] [Reset] — used at every
+ * viewport width, replacing the previous two-row layout (a text-labeled
+ * row hidden below `md`, an icon-only row shown only below `md` with no
+ * visible text at all beyond aria-labels). That icon-only row is the
+ * likely source of an earlier "unclear whether filled or blank" report on
+ * mobile — this version never depends on icons alone: Print/PDF are
+ * `Menu` dropdowns (src/components/ui/Menu.tsx, ported from
+ * bgrowth-portal's own copy — see the PDF/Print unification report) whose
+ * items always show real text plus a one-line description distinguishing
+ * filled from blank, on every screen size.
+ */
 export function ProductHeader({
   title,
   onSave,
@@ -25,59 +38,61 @@ export function ProductHeader({
   isSaving,
   isGeneratingPdf,
   isGeneratingBlankPdf,
-}: ProductHeaderProps) {  return (
+}: ProductHeaderProps) {
+  return (
     <header className="no-print sticky top-0 z-30 border-b border-navy-100 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2.5">
           <BGrowthLogo title={title} />
         </div>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <SecondaryButton onClick={onSave} disabled={isSaving}>
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <SecondaryButton size="sm" onClick={onSave} disabled={isSaving}>
             <Cloud className="h-4 w-4" />
             {isSaving ? 'Saving…' : 'Save'}
           </SecondaryButton>
-          <SecondaryButton onClick={onPrint}>
-            <Printer className="h-4 w-4" />
-            Print
-          </SecondaryButton>
-          {onPrintBlank && (
-            <SecondaryButton onClick={onPrintBlank}>
-              <Printer className="h-4 w-4" />
-              Print Blank
-            </SecondaryButton>
-          )}
-          <PrimaryButton onClick={onDownloadPdf} disabled={isGeneratingPdf}>
-            <Download className="h-4 w-4" />
-            {isGeneratingPdf ? 'Preparing…' : 'Download PDF'}
-          </PrimaryButton>
-          {onDownloadBlankPdf && (
-            <SecondaryButton onClick={onDownloadBlankPdf} disabled={isGeneratingBlankPdf}>
-              <Download className="h-4 w-4" />
-              {isGeneratingBlankPdf ? 'Preparing…' : 'Blank PDF'}
-            </SecondaryButton>
-          )}          <SecondaryButton onClick={onReset}>
-            <RotateCcw className="h-4 w-4" />
-            Reset Form
-          </SecondaryButton>
-        </div>
 
-        {/* Mobile compact buttons */}
-        <div className="flex items-center gap-1.5 md:hidden">
-          <button aria-label="Save" onClick={onSave} className="flex h-9 w-9 items-center justify-center rounded-lg border border-navy-100 text-navy-600 active:bg-navy-50">
-            <Cloud className="h-4 w-4" />
-          </button>
-       <button aria-label="Download PDF" onClick={onDownloadPdf} className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white active:bg-brand-600">
-            <Download className="h-4 w-4" />
-          </button>
-          {onDownloadBlankPdf && (
-            <button aria-label="Download blank PDF" onClick={onDownloadBlankPdf} className="flex h-9 w-9 items-center justify-center rounded-lg border border-navy-100 text-navy-600 active:bg-navy-50">
-              <Download className="h-4 w-4" />
-            </button>
-          )}
-          <button aria-label="Reset form" onClick={onReset} className="flex h-9 w-9 items-center justify-center rounded-lg border border-navy-100 text-navy-600 active:bg-navy-50">
+          <Menu
+            trigger={
+              <>
+                <Printer className="h-4 w-4" />
+                Print
+              </>
+            }
+            items={[
+              { label: 'Print filled', description: 'Prints your current answers', onSelect: onPrint },
+              ...(onPrintBlank
+                ? [{ label: 'Print blank', description: 'Prints an empty copy to fill by hand', onSelect: onPrintBlank }]
+                : []),
+            ]}
+          />
+
+          <Menu
+            trigger={
+              <>
+                <Download className="h-4 w-4" />
+                {isGeneratingPdf || isGeneratingBlankPdf ? 'Preparing…' : 'PDF'}
+              </>
+            }
+            items={[
+              { label: 'Download PDF', description: 'Includes your current answers', onSelect: onDownloadPdf, disabled: isGeneratingPdf },
+              ...(onDownloadBlankPdf
+                ? [
+                    {
+                      label: 'Download blank PDF',
+                      description: 'An empty copy to fill by hand',
+                      onSelect: onDownloadBlankPdf,
+                      disabled: isGeneratingBlankPdf,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+
+          <SecondaryButton size="sm" onClick={onReset}>
             <RotateCcw className="h-4 w-4" />
-          </button>
+            Reset
+          </SecondaryButton>
         </div>
       </div>
     </header>

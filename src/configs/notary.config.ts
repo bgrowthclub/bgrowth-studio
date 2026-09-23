@@ -4,7 +4,7 @@ export const notaryConfig: ChecklistConfig = {
   productId: 'notary-appointment-checklist',
   brand: {
     name: 'Notary Appointment Workflow Checklist',
-    companyLabel: 'BGrowth Club',
+    companyLabel: 'BGrowth',
     primaryColor: '#1061EC',
   },
   footer: {

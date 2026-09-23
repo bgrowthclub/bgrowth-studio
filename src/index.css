@@ -41,17 +41,41 @@ body {
   left: 0;
 }
 
-/* O elemento real da folha de PDF */
+/* O elemento real da folha de PDF.
+   width:100% (not a fixed 800px) so this element fills whatever container
+   it's actually placed in: 800px in our own off-screen instance (its
+   parent .printable-summary-container is forced to 800px in pdf.ts before
+   capture), but html2pdf.js's own internal capture clones this element
+   into ITS OWN container sized to the real printable page width (usually
+   under 800px at any realistic margin) — with a fixed 800px here, that
+   clone kept declaring 800px inside a narrower box and silently lost
+   every line of text within ~60-75px of the right edge in the exported
+   PDF (confirmed by extracting the embedded page image directly from a
+   generated PDF — this was never a browser Print bug, since @media print
+   below already correctly resets this to width:auto for that path). The
+   component's own max-w-[800px] Tailwind class still caps it at 800px, so
+   the on-screen/off-screen instance is unaffected by this change. */
 .printable-summary {
-  width: 800px;
+  width: 100%;
   background-color: #ffffff;
   position: relative;
+}
+
+/* Matches downloadElementAsPdf's own margin option (src/lib/pdf.ts callers
+   pass [5, 10, 5, 10] mm) so browser Print and Download PDF produce the
+   same page margins instead of Print falling back to the browser/OS print
+   dialog's own default (often ~12.7mm/0.5in) — without this, "Print
+   filled"/"Print blank" and "Download PDF"/"Download blank PDF" could
+   visually diverge even though they render the exact same DOM. */
+@page {
+  size: letter;
+  margin: 5mm 10mm;
 }
 
 @media print {
   .no-print { display: none !important; }
   body { background: #ffffff !important; }
-  
+
   /* Restaura o fluxo normal para impressão física */
   .printable-summary-container {
     width: auto;
@@ -59,7 +83,7 @@ body {
     overflow: visible;
     position: static;
   }
-  
+
   .printable-summary {
     position: static;
     left: auto;

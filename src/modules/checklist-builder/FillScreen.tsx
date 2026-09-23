@@ -8,7 +8,8 @@ import { ProgressCard } from '../../components/ProgressCard';
 import { StepList } from '../../components/StepList';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Toast } from '../../components/Toast';
-import { SecondaryButton, PrimaryButton } from '../../components/ui/Button';
+import { SecondaryButton } from '../../components/ui/Button';
+import { Menu } from '../../components/ui/Menu';
 import { useBackendAutosave } from './useBackendAutosave';
 import { useProgress } from '../../engine/useProgress';
 import { buildZodSchema, requiredFieldPaths } from '../../engine/schemaBuilder';
@@ -115,7 +116,10 @@ export function FillScreen({ template, instance, ownerEmail, onBack }: FillScree
     setTimeout(async () => {
       try {
         const filename = `${config.brand.name.replace(/\s+/g, '-')}-Blank.pdf`;
-        await downloadElementAsPdf(printableRef.current!, filename);
+        await downloadElementAsPdf(printableRef.current!, filename, {
+          pagebreakMode: ['css', 'legacy'],
+          margin: [5, 10, 5, 10],
+        });
         showToast('Blank PDF downloaded');
       } catch (err) {
         showToast('Error generating PDF');
@@ -131,7 +135,10 @@ const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
       const filename = `${config.brand.name.replace(/\s+/g, '-')}-${instance.clientOrJobRef?.replace(/\s+/g, '-') || instanceId}.pdf`;
-      await downloadElementAsPdf(printableRef.current, filename);
+      await downloadElementAsPdf(printableRef.current, filename, {
+        pagebreakMode: ['css', 'legacy'],
+        margin: [5, 10, 5, 10],
+      });
       showToast('PDF downloaded');
     } finally {
       setIsGeneratingPdf(false);
@@ -199,18 +206,35 @@ const handleDownloadPdf = async () => {
               <Cloud className="h-4 w-4" />
               Save
             </SecondaryButton>
-            <SecondaryButton size="sm" onClick={handlePrintBlank} title="Print blank checklist template">
-              <Printer className="h-4 w-4" />
-              <span className="hidden sm:inline">Print Blank</span>
-            </SecondaryButton>
-            <SecondaryButton size="sm" onClick={handleDownloadBlankPdf} disabled={isGeneratingBlankPdf} title="Download blank PDF">
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">{isGeneratingBlankPdf ? 'Preparing…' : 'Blank PDF'}</span>
-            </SecondaryButton>
-            <PrimaryButton size="sm" onClick={handleDownloadPdf} disabled={isGeneratingPdf}>
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">{isGeneratingPdf ? 'Preparing…' : 'PDF'}</span>
-            </PrimaryButton>
+            <Menu
+              trigger={
+                <>
+                  <Printer className="h-4 w-4" />
+                  Print
+                </>
+              }
+              items={[
+                { label: 'Print filled', description: 'Prints your current answers', onSelect: handlePrint },
+                { label: 'Print blank', description: 'Prints an empty copy to fill by hand', onSelect: handlePrintBlank },
+              ]}
+            />
+            <Menu
+              trigger={
+                <>
+                  <Download className="h-4 w-4" />
+                  {isGeneratingPdf || isGeneratingBlankPdf ? 'Preparing…' : 'PDF'}
+                </>
+              }
+              items={[
+                { label: 'Download PDF', description: 'Includes your current answers', onSelect: handleDownloadPdf, disabled: isGeneratingPdf },
+                {
+                  label: 'Download blank PDF',
+                  description: 'An empty copy to fill by hand',
+                  onSelect: handleDownloadBlankPdf,
+                  disabled: isGeneratingBlankPdf,
+                },
+              ]}
+            />
           </div>
         </div>
 
