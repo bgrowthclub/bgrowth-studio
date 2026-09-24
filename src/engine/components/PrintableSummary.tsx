@@ -20,8 +20,14 @@ function getCompanyInfo(config: ChecklistConfig) {
     return {
       name: settings?.companyName || config.brand.companyLabel || 'BGrowth',
       logo: settings?.logoUrl ?? null,
+      // True only when the checklist owner actually configured their own
+      // company name or logo in Settings — not just whatever companyName
+      // ends up falling back to. Distinguishes "buyer genuinely
+      // white-labeled this" from "no branding was ever configured", which
+      // `name` alone can't do once it's fallen back to config.brand.companyLabel.
+      hasCustomBranding: Boolean(settings?.companyName || settings?.logoUrl),
     };
-  } catch { return { name: config.brand.companyLabel || 'BGrowth', logo: null }; }
+  } catch { return { name: config.brand.companyLabel || 'BGrowth', logo: null, hasCustomBranding: false }; }
 }
 
 /** Keeps a whole block together when it's reasonably short. */
@@ -54,7 +60,7 @@ const BLOCK_STYLE: CSSProperties = { breakInside: 'avoid', pageBreakInside: 'avo
 export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps>(({ config, data, percent }, ref) => {
   const isBlank = !data || Object.keys(data).length === 0;
   const isPublic = isPublicLink();
-  const { name: companyName, logo: logoUrl } = getCompanyInfo(config);
+  const { name: companyName, logo: logoUrl, hasCustomBranding } = getCompanyInfo(config);
   const primaryColor = config.brand.primaryColor || '#1061EC';
 
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -103,9 +109,13 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
           <div className="mt-2 h-[2px] w-10" style={{ backgroundColor: primaryColor }} />
         </div>
 
-        {/* Branding — public link shows only the buyer's typed company name (no logo);
-            logged-in Studio shows the configured logo, or the BGrowth default. */}
-        {isPublic ? (
+        {/* Branding — a public link only omits the BGrowth logo when the
+            checklist owner actually configured their own company
+            name/logo (genuine white-label); an unconfigured public link
+            gets the same standard BGrowth logo treatment as logged-in
+            Studio. See getCompanyInfo's hasCustomBranding for how "genuinely
+            configured" is distinguished from companyName's own fallback. */}
+        {isPublic && hasCustomBranding ? (
           <div className="text-right text-[10px] font-semibold text-slate-500">{companyName}</div>
         ) : (
           <div className="flex items-center gap-1.5">

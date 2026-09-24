@@ -178,13 +178,13 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
         subtitle="Select a template to fill out, or create a new one"
         actions={
           <div className="flex items-center gap-2">
-            <SecondaryButton size="sm" onClick={() => setShowJsonImportModal(true)}>
+            <SecondaryButton size="sm" onClick={() => setShowJsonImportModal(true)} title="Importar JSON">
               <Upload className="h-4 w-4" />
-              Importar JSON
+              <span className="hidden sm:inline">Importar JSON</span>
             </SecondaryButton>
-            <PrimaryButton size="sm" onClick={onNew}>
+            <PrimaryButton size="sm" onClick={onNew} title="New Template">
               <Plus className="h-4 w-4" />
-              New Template
+              <span className="hidden sm:inline">New Template</span>
             </PrimaryButton>
           </div>
         }
@@ -238,20 +238,35 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
                 <button
                   type="button"
                   onClick={() => handleOpen(t)}
-                  className="group flex w-full items-center gap-4 rounded-2xl border border-navy-100 bg-white p-4 text-left shadow-card transition-shadow hover:shadow-cardHover sm:p-5"
+                  className="group flex w-full flex-col gap-3 rounded-2xl border border-navy-100 bg-white p-4 text-left shadow-card transition-shadow hover:shadow-cardHover sm:flex-row sm:items-center sm:gap-4 sm:p-5"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand">
-                    <LayoutList className="h-5 w-5" />
-                  </span>
+                  {/* Identity — icon + name/date. Its own full-width row on
+                      mobile (see the actions row below) so the template name
+                      gets the card's full width instead of being squeezed
+                      down to a few characters by the action buttons; sm+
+                      restores the original single-row layout unchanged. */}
+                  <span className="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand">
+                      <LayoutList className="h-5 w-5" />
+                    </span>
 
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold text-navy-800">{t.name}</span>
-                    <span className="block text-xs text-navy-400">
-                      Updated {new Date(t.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    <span className="min-w-0 flex-1">
+                      {/* Wraps up to 2 lines on mobile instead of ellipsis-truncating after
+                          a handful of characters — the whole point of this reflow is giving
+                          the name real room, not just less-bad truncation. sm+ reverts to the
+                          original single-line truncate (unchanged desktop appearance). */}
+                      <span className="text-[15px] font-semibold leading-snug text-navy-800 line-clamp-2 sm:line-clamp-none sm:block sm:truncate sm:leading-normal">{t.name}</span>
+                      <span className="block text-xs text-navy-400">
+                        Updated {new Date(t.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
                     </span>
                   </span>
 
-                  <span className="flex shrink-0 items-center gap-1.5">
+                  {/* Actions — full-width row of its own below the identity
+                      row on mobile (evenly spaced so every action stays
+                      reachable with no horizontal scrolling); sm+ sits
+                      inline at the end of the single row, same as before. */}
+                  <span className="flex shrink-0 items-center justify-between gap-1.5 border-t border-navy-50 pt-3 sm:justify-end sm:border-t-0 sm:pt-0">
                     {/* Copy public link */}
                     <SecondaryButton size="sm" onClick={(e) => handleCopyLink(e, t.templateId)} title="Copy public link">
                       {copiedId === t.templateId
@@ -279,7 +294,7 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
                       <Trash2 className="h-3.5 w-3.5" />
                     </SecondaryButton>
 
-                    <ChevronRight className="h-4 w-4 text-navy-300" />
+                    <ChevronRight className="h-4 w-4 shrink-0 text-navy-300" />
                   </span>
                 </button>
 

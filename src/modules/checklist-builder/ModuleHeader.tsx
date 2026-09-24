@@ -13,7 +13,16 @@ interface ModuleHeaderProps {
 
 export function ModuleHeader({ title, subtitle, onBack, backLabel = 'Back', actions, className }: ModuleHeaderProps) {
   return (
-    <div className={cn('flex items-center justify-between gap-4 border-b border-navy-100 bg-white px-4 py-3.5 sm:px-6', className)}>
+    <div
+      className={cn(
+        // Stacked (title row, then actions row) below sm so a wide actions
+        // slot (e.g. two labeled buttons) never squeezes the title or
+        // overflows the viewport on mobile; sm+ restores the original
+        // single-row layout unchanged.
+        'flex flex-col gap-3 border-b border-navy-100 bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6',
+        className
+      )}
+    >
       <div className="flex min-w-0 items-center gap-3">
         {onBack && (
           <button
@@ -30,7 +39,7 @@ export function ModuleHeader({ title, subtitle, onBack, backLabel = 'Back', acti
           {subtitle && <p className="truncate text-xs text-navy-400">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">{actions}</div>}
     </div>
   );
 }
