@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import { WorkflowSection } from '../../components/WorkflowSection';
 import { SectionSummaryRow } from '../../components/SectionSummaryRow';
 import { FormSectionFields } from './FormSectionFields';
@@ -14,6 +15,10 @@ interface WorkflowAccordionProps {
   onSelect: (id: string) => void;
   onContinue: (id: string) => void;
   progressBySection: Record<string, SectionProgress>;
+  /** Attached to the active section's own wrapper (not the whole accordion) so the
+   * caller can scroll precisely to whichever section just became active after
+   * Save & Continue — see App.tsx/FillScreen.tsx's handleContinue. */
+  activeSectionRef?: Ref<HTMLDivElement>;
 }
 
 function statusFor(progress: SectionProgress): { label: string; kind: StatusKind } {
@@ -37,7 +42,7 @@ function renderFields(section: SectionConfig) {
   }
 }
 
-export function WorkflowAccordion({ config, activeId, onSelect, onContinue, progressBySection }: WorkflowAccordionProps) {
+export function WorkflowAccordion({ config, activeId, onSelect, onContinue, progressBySection, activeSectionRef }: WorkflowAccordionProps) {
   const totalSteps = config.sections.length;
 
   return (
@@ -49,20 +54,21 @@ export function WorkflowAccordion({ config, activeId, onSelect, onContinue, prog
 
         if (section.id === activeId) {
           return (
-            <WorkflowSection
-              key={section.id}
-              number={section.number}
-              totalSteps={totalSteps}
-              icon={<Icon />}
-              title={section.title}
-              description={section.description}
-              whyItMatters={section.whyItMatters}
-              tip={section.tip}
-              isLast={section.number === totalSteps}
-              onContinue={() => onContinue(section.id)}
-            >
-              {renderFields(section)}
-            </WorkflowSection>
+            <div key={section.id} ref={activeSectionRef} className="scroll-mt-20">
+              <WorkflowSection
+                number={section.number}
+                totalSteps={totalSteps}
+                icon={<Icon />}
+                title={section.title}
+                description={section.description}
+                whyItMatters={section.whyItMatters}
+                tip={section.tip}
+                isLast={section.number === totalSteps}
+                onContinue={() => onContinue(section.id)}
+              >
+                {renderFields(section)}
+              </WorkflowSection>
+            </div>
           );
         }
 

@@ -57,6 +57,7 @@ export function FillScreen({ template, instance, ownerEmail, onBack }: FillScree
   const [isRenderBlank, setIsRenderBlank] = useState(false);
   const [isGeneratingBlankPdf, setIsGeneratingBlankPdf] = useState(false);
   const printableRef = useRef<HTMLDivElement>(null);
+  const activeSectionRef = useRef<HTMLDivElement>(null);
 
   const showToast = useCallback((message: string) => {
     setToast({ message, visible: true });
@@ -85,6 +86,14 @@ export function FillScreen({ template, instance, ownerEmail, onBack }: FillScree
     const next = config.sections[currentIndex + 1];
     if (next) {
       setActiveId(next.id);
+      // Deferred to the next frame so this runs after React has committed the
+      // new active section into the DOM (activeSectionRef always points at
+      // whichever section is currently active — see WorkflowAccordion).
+      // scroll-mt-20 on that wrapper keeps its title clear of the sticky
+      // ProductHeader above it.
+      requestAnimationFrame(() => {
+        activeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     } else {
       showToast('Checklist complete — nice work!');
     }
@@ -256,6 +265,7 @@ const handleDownloadPdf = async () => {
               onSelect={setActiveId}
               onContinue={handleContinue}
               progressBySection={progress.sections}
+              activeSectionRef={activeSectionRef}
             />
           </section>
         </div>

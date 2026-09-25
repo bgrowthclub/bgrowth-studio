@@ -100,6 +100,7 @@ function PublicFillInner({ config, storageId }: { config: ChecklistConfig; stora
   const [isGeneratingBlankPdf, setIsGeneratingBlankPdf] = useState(false);
   const [isRenderBlank, setIsRenderBlank] = useState(false);
   const printableRef = useRef<HTMLDivElement>(null);
+  const activeSectionRef = useRef<HTMLDivElement>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -125,8 +126,19 @@ function PublicFillInner({ config, storageId }: { config: ChecklistConfig; stora
     }
     saveFormData(storageId, methods.getValues());
     const next = config.sections[config.sections.findIndex((s) => s.id === id) + 1];
-    if (next) setActiveId(next.id);
-    else showToast('Checklist complete — nice work!');
+    if (next) {
+      setActiveId(next.id);
+      // Deferred to the next frame so this runs after React has committed the
+      // new active section into the DOM (activeSectionRef always points at
+      // whichever section is currently active — see WorkflowAccordion).
+      // scroll-mt-20 on that wrapper keeps its title clear of the sticky
+      // ProductHeader above it.
+      requestAnimationFrame(() => {
+        activeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    } else {
+      showToast('Checklist complete — nice work!');
+    }
   };
 
   const handlePrintBlank = () => {
@@ -195,7 +207,7 @@ function PublicFillInner({ config, storageId }: { config: ChecklistConfig; stora
         <main className="mx-auto flex max-w-[1280px] flex-col gap-5 px-4 py-6 sm:px-6 lg:flex-row lg:items-start">
           <Sidebar percent={progress.percent} completed={progress.completedFields} total={progress.totalFields} items={stepListItems} activeId={activeId} onSelect={setActiveId} />
           <section className="min-w-0 flex-1">
-            <WorkflowAccordion config={config} activeId={activeId} onSelect={setActiveId} onContinue={handleContinue} progressBySection={progress.sections} />
+            <WorkflowAccordion config={config} activeId={activeId} onSelect={setActiveId} onContinue={handleContinue} progressBySection={progress.sections} activeSectionRef={activeSectionRef} />
           </section>
         </main>
         <Footer footer={config.footer} />

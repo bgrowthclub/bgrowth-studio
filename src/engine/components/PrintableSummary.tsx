@@ -100,10 +100,10 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-            {config.brand.companyLabel}
-          </span>
-          <h1 className="mt-1 text-[21px] font-bold leading-tight tracking-tight text-[#0b1d3a]">
+          {/* No standalone "BGROWTH" eyebrow here — the product title is the
+              only left-side text; BGrowth's own identity lives in the logo
+              on the right (see the PDF header cleanup report). */}
+          <h1 className="text-[21px] font-bold leading-tight tracking-tight text-[#0b1d3a]">
             {config.brand.name}
           </h1>
           <div className="mt-2 h-[2px] w-10" style={{ backgroundColor: primaryColor }} />
@@ -128,7 +128,6 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
             )}
             <div className="flex flex-col leading-none">
               <span className="text-[12.5px] font-extrabold tracking-tight text-[#0b1d3a]">{logoUrl ? companyName : 'BGrowth'}</span>
-              {!logoUrl && <span className="text-[6.5px] font-semibold uppercase tracking-widest text-gray-400">Business Growth</span>}
             </div>
           </div>
         )}
