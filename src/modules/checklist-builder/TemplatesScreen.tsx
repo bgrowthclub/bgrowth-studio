@@ -10,6 +10,7 @@ import type { BuilderDraft } from './builderTypes';
 import { ImportTemplateJsonModal } from './ImportTemplateJsonModal';
 import { loadSettings } from './SettingsScreen';
 import { decompressString } from '../../lib/compress';
+import { archiveProduct } from '../../lib/publishingEngine';
 
 interface TemplatesScreenProps {
   ownerEmail: string;
@@ -159,9 +160,48 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
+    setError(null);
     try {
+      // Read this template's own persisted publish status — the same
+      // config.publishing.status field TemplateBuilderScreen's Publish/
+      // Unpublish actions already write and read back (see handleEdit
+      // above) — to decide whether a corresponding Portal product can
+      // exist at all. A template that was never published (status
+      // 'draft', or no publishing metadata yet) has no Portal product to
+      // touch, so Portal is never called for it.
+      let everPublished = false;
+      try {
+        let configJson = deleteTarget.configJson;
+        if (configJson.startsWith('GZIP:')) {
+          configJson = await decompressString(configJson.slice(5));
+        }
+        const config = JSON.parse(configJson);
+        const publishStatus = config.publishing?.status;
+        everPublished = publishStatus === 'published' || publishStatus === 'archived';
+      } catch {
+        // Unreadable config — treat like a never-published template rather
+        // than guessing; there is no reliable studio_product_id signal to
+        // act on here.
+      }
+
       await api_deleteTemplate(deleteTarget.templateId);
       setTemplates((prev) => prev.filter((t) => t.templateId !== deleteTarget.templateId));
+
+      // The Studio delete above already succeeded — this is now purely a
+      // best-effort Portal cleanup on top of it, never something that
+      // should make the app claim the delete itself failed.
+      if (everPublished) {
+        const result = await archiveProduct({ studioProductId: deleteTarget.templateId, publishedBy: ownerEmail });
+        if (!result.ok) {
+          const notFound = result.error?.toLowerCase().includes('no product found');
+          setError(
+            notFound
+              ? 'Template deleted. No corresponding Portal product was found to archive.'
+              : `Template deleted, but archiving its Portal product failed — ${result.error}. It may still be visible in the Portal catalog; retry or contact support.`,
+          );
+        }
+      }
+
       setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed');
@@ -314,7 +354,7 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
       <ConfirmDialog
         open={!!deleteTarget}
         title={`Delete "${deleteTarget?.name}"?`}
-        description="This permanently deletes the template and cannot be undone. Existing fills will remain in the Sheets but will no longer be accessible."
+        description="This permanently deletes the template and cannot be undone. If it has been published, its Portal product will be archived and removed from the public catalog — existing customers keep their access. Existing fills will remain in the Sheets but will no longer be accessible."
         confirmLabel={deleting ? 'Deleting…' : 'Delete Template'}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
