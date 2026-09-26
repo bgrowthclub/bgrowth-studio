@@ -13,6 +13,23 @@ function isPublicLink() {
   return window.location.search.includes('template=');
 }
 
+/**
+ * Recognizes BGrowth's recurring cross-product "Continue Your Journey" /
+ * "Continue Sua Jornada" promotional section by its title text — no schema
+ * field distinguishes a promotional section from any other content section
+ * (ChecklistConfig's section shape has no such flag), so title matching
+ * against this brand-standard, product-agnostic phrase (in either language
+ * it's currently authored in) is the only available signal. Matches
+ * regardless of an emoji/number prefix Studio may have added to the title.
+ * Excludes the section from Print/PDF only — the online fill flow
+ * (WorkflowAccordion) never calls this and keeps rendering it unchanged.
+ * Ported to match bgrowth-portal's DocumentPrintSummary.tsx identically.
+ */
+function isJourneyCtaSection(section: { title: string }): boolean {
+  const normalized = section.title.toLowerCase();
+  return normalized.includes('continue your journey') || normalized.includes('continue sua jornada');
+}
+
 function getCompanyInfo(config: ChecklistConfig) {
   try {
     const raw = localStorage.getItem('bgrowth.checklist-builder.settings');
@@ -74,9 +91,19 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
     return (
       <div className="mb-2 break-words">
         <div className="text-[8.5px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
-        <div className="text-[10.5px] leading-snug text-slate-900">
-          {isBlank ? <span className="text-slate-300">—</span> : value || <span className="text-slate-300">—</span>}
-        </div>
+        {isBlank ? (
+          // Blank document: a clean, unobtrusive writing line instead of a
+          // "—" placeholder — a dash reads as "no content belongs here"
+          // rather than "write your answer here". Sized to the filled
+          // line's own height so the field grid's vertical rhythm doesn't
+          // shift between filled and blank output. Matches
+          // bgrowth-portal's DocumentPrintSummary.tsx identically.
+          <div className="h-[14px] border-b border-slate-300" aria-hidden="true" />
+        ) : (
+          // Filled document: unchanged — an individual field the member
+          // left empty still shows "—", exactly as before.
+          <div className="text-[10.5px] leading-snug text-slate-900">{value || <span className="text-slate-300">—</span>}</div>
+        )}
       </div>
     );
   }
@@ -96,7 +123,7 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
   }
 
   return (
-    <div ref={ref} className="printable-summary mx-auto max-w-[800px] select-none bg-white p-8 font-sans text-slate-900">
+    <div ref={ref} className="printable-summary mx-auto max-w-[800px] select-none bg-white px-8 pb-8 pt-5 font-sans text-slate-900">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -133,22 +160,26 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
         )}
       </div>
 
-      {/* Progress / Metadata */}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[10px] text-slate-500" style={BLOCK_STYLE}>
-        <span>{isBlank ? 'Blank template' : 'Filled document'}</span>
-        <span className="font-semibold" style={{ color: primaryColor }}>
-          {isBlank ? 'Blank Form' : `${percent}% complete`}
-        </span>
+      {/* Metadata — generated date only. Fill/blank status ("Filled
+          document"/"X% complete"/"Blank template"/"Blank Form") used to
+          also live here — moved to live exclusively in the footer below,
+          so status isn't duplicated in two places on the page. Matches
+          bgrowth-portal's DocumentPrintSummary.tsx identically. */}
+      <div className="mt-3 flex items-center justify-end text-[10px] text-slate-500" style={BLOCK_STYLE}>
         <span>Generated {today}</span>
       </div>
 
       {/* Content — all section types render from config.sections; see the
-          doc comment above for why there is no per-product special case. */}
+          doc comment above for why there is no per-product special case.
+          Excludes the "Continue Your Journey"/"Continue Sua Jornada"
+          promotional section (see isJourneyCtaSection above) from every
+          type group below — Print/PDF ends with the member's real content,
+          never this online-only cross-sell block. */}
       <div className="mt-4 flex flex-col">
         {/* Form sections — fully data-driven from config.sections for every
             product (no per-product special case). */}
         {config.sections
-          .filter((sec) => sec.type === 'form')
+          .filter((sec) => sec.type === 'form' && !isJourneyCtaSection(sec))
           .map((section) => {
             const formSection = section as FormSectionConfig;
             const secData = (data[formSection.id] as Record<string, string>) || {};
@@ -201,7 +232,7 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
             not CSS alone, is what keeps html2pdf's avoid-all mode from relocating a whole
             section wholesale onto a near-empty trailing page. */}
         {config.sections
-            .filter((sec) => sec.type === 'checklist')
+            .filter((sec) => sec.type === 'checklist' && !isJourneyCtaSection(sec))
             .map((section) => {
               if (section.type !== 'checklist') return null;
               const secValues = (data[section.id] as Record<string, boolean>) || {};
@@ -228,7 +259,7 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
 
         {/* Notes */}
         {config.sections
-          .filter((sec) => sec.type === 'notes')
+          .filter((sec) => sec.type === 'notes' && !isJourneyCtaSection(sec))
           .map((section) => {
             const val = isBlank ? '' : (data[section.id] as string) || '';
             return (
@@ -244,7 +275,7 @@ export const PrintableSummary = forwardRef<HTMLDivElement, PrintableSummaryProps
 
         {/* Outcome */}
         {config.sections
-          .filter((sec) => sec.type === 'outcome')
+          .filter((sec) => sec.type === 'outcome' && !isJourneyCtaSection(sec))
           .map((section) => {
             if (section.type !== 'outcome') return null;
             const secValues = (data[section.id] as Record<string, boolean>) || {};
