@@ -287,11 +287,11 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         // stale fields next time it's reopened until Save Template is
         // clicked manually, so say so rather than silently swallowing it.
         console.error('Failed to persist publish metadata to Studio', saveErr);
-        showToast('Published to Portal, but saving the updated details in Studio failed — click Save Template to retry.');
+        showToast('Published to Portal & Website, but saving the updated details in Studio failed — click Save Template to retry.');
         return;
       }
 
-      showToast(`Published to Portal ✓ (v${result.product?.version})`);
+      showToast(`Published to Portal & Website ✓ (v${result.product?.version})`);
     } catch (e) {
       showToast('Publish failed — ' + (e instanceof Error ? e.message : 'unknown error'));
     } finally {
@@ -300,7 +300,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   };
 
   /**
-   * Unpublish — removes the Workspace from the Portal's public catalog and
+   * Unpublish — removes the Workspace from the Portal's and the Website's public catalog and
    * blocks new purchases/trials, while every existing customer's license,
    * review, and the full version history stay completely intact (see
    * portal.archive_product()). Deliberately does NOT reuse handlePublish's
@@ -438,16 +438,16 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
               size="sm"
               onClick={handlePublish}
               disabled={isPublishing || !draft.templateId}
-              title={!draft.templateId ? 'Save the template first' : 'Publish to the BGrowth Portal'}
+              title={!draft.templateId ? 'Save the template first' : 'Publish to the BGrowth Portal and the BGrowth Website'}
             >
               <UploadCloud className="h-4 w-4" />
-              {isPublishing ? 'Publishing…' : 'Publish to Portal'}
+              {isPublishing ? 'Publishing…' : 'Publish to Portal & Website'}
             </SecondaryButton>
             <SecondaryButton
               size="sm"
               onClick={() => setShowArchiveConfirm(true)}
               disabled={isArchiving || !draft.templateId}
-              title={!draft.templateId ? 'Save and publish the template first' : 'Unpublish from the BGrowth Portal'}
+              title={!draft.templateId ? 'Save and publish the template first' : 'Unpublish from the BGrowth Portal and the BGrowth Website'}
               className="text-red-500 hover:border-red-200 hover:bg-red-50"
             >
               <Archive className="h-4 w-4" />
@@ -498,7 +498,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">
-                    Short Description <span className="normal-case font-normal text-navy-300">(shown on the Portal storefront)</span>
+                    Short Description <span className="normal-case font-normal text-navy-300">(shown on the Portal and Website storefronts)</span>
                   </label>
                   <Textarea
                     value={draft.shortDescription ?? ''}
@@ -527,7 +527,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">
-                    Cover Image <span className="normal-case font-normal text-navy-300">(shown on the Portal storefront)</span>
+                    Cover Image <span className="normal-case font-normal text-navy-300">(shown on the Portal and Website storefronts)</span>
                   </label>
                   <div className="flex items-center gap-3">
                     {(pendingCoverImage?.base64 || draft.coverImageUrl) ? (
@@ -783,7 +783,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
       <ConfirmDialog
         open={showArchiveConfirm}
         title={`Unpublish "${draft.name}"?`}
-        description="This removes the Workspace from the Portal's public catalog and blocks new purchases or trials. Existing customers keep full access, their reviews stay visible, and the full version history is preserved — you can publish again at any time."
+        description="This removes the Workspace from the Portal's and the Website's public catalog and blocks new purchases or trials. Existing customers keep full access, their reviews stay visible, and the full version history is preserved — you can publish again at any time."
         confirmLabel={isArchiving ? 'Unpublishing…' : 'Unpublish'}
         onConfirm={handleArchiveConfirm}
         onCancel={() => setShowArchiveConfirm(false)}
