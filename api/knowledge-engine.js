@@ -1,8 +1,4 @@
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
-// Not yet called — see the PHASE 1 note below. Imported now so enabling
-// the gate later is a two-line change (uncomment the call, uncomment the
-// 401 branch), not a new import to wire up.
-// eslint-disable-next-line no-unused-vars
 import { requireAdmin } from './_lib/requireAdmin.js';
 
 /**
@@ -19,20 +15,8 @@ import { requireAdmin } from './_lib/requireAdmin.js';
  * shape is translated to/from the knowledge_engine.items columns. No UI
  * component needs to know this split exists.
  *
- * PHASE 1 — TEMPORARY, NO AUTH: this endpoint has no requireAdmin() gate,
- * matching every other Studio tool today (see api/access-management.js's
- * own identical note, and App.tsx: "Phase 1: no Studio-wide authentication
- * exists yet... this renders unauthenticated, same as every other tool
- * including Content Engine" — 0022_studio_admins.sql is prepared but not
- * applied). Building a one-off login flow just for Knowledge Engine would
- * make it inconsistent with the rest of Studio, not more secure. The only
- * protection right now is whatever restricts who can reach this deployment
- * at all. To enable the real gate once Studio-wide auth is activated:
- * uncomment the `requireAdmin` import above, and at the top of this
- * handler add `const admin = await requireAdmin(req); if (!admin) return
- * res.status(401).json({ error: 'Unauthorized' });` — no other change is
- * needed here, since this file already reads/writes nothing that depends
- * on which admin is acting (unlike Access Management's `granted_by`).
+ * Gated by requireAdmin() (portal.studio_admins, migration 0022), like
+ * every other privileged Studio endpoint.
  */
 
 const KNOWLEDGE_ITEM_STRING_FIELDS = {
@@ -138,6 +122,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const supabase = getSupabaseAdmin();
 

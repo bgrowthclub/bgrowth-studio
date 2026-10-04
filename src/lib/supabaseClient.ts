@@ -18,7 +18,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// Anon-key client, browser-side only — used for the admin login session and
+// Anon-key client (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY, set in Vercel for
+// Production and Preview), browser-side only — used for the admin login session and
 // for reading portal.catalog_index (already public-read RLS, the same data
 // Portal's own Browse/Home pages expose to anonymous visitors). Also used to
 // read the caller's own row in portal.studio_admins (see RequireAdmin.tsx) —

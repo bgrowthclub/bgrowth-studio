@@ -1,28 +1,22 @@
 import { supabase } from '../../../lib/supabaseClient';
 import type { AccessGrant, CreateGrantInput, MemberSummary, WorkspaceOption } from '../types';
 
+import { apiFetch } from '../../../lib/apiClient';
 async function parseOrThrow<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
   return data as T;
 }
 
-/**
- * PHASE 1 — TEMPORARY: plain fetch, no Bearer token. Studio has no
- * per-user session to attach today (see the Access Management Phase 1
- * audit — 0022_studio_admins.sql is prepared but not applied, AuthProvider
- * is unmounted). Switch back to apiFetch() (src/lib/apiClient.ts) once
- * Studio-wide auth is activated — it already exists and is unused,
- * ready to be reconnected alongside requireAdmin() on the server side.
- */
+/** Every call carries the admin's session token (apiFetch); the server checks it with requireAdmin(). */
 export async function searchMembers(email: string): Promise<MemberSummary[]> {
-  const res = await fetch(`/api/access-management?resource=members&email=${encodeURIComponent(email)}`);
+  const res = await apiFetch(`/api/access-management?resource=members&email=${encodeURIComponent(email)}`);
   const { members } = await parseOrThrow<{ members: MemberSummary[] }>(res);
   return members;
 }
 
 export async function fetchGrants(userId: string): Promise<AccessGrant[]> {
-  const res = await fetch(`/api/access-management?resource=grants&userId=${encodeURIComponent(userId)}`);
+  const res = await apiFetch(`/api/access-management?resource=grants&userId=${encodeURIComponent(userId)}`);
   const { grants } = await parseOrThrow<{ grants: AccessGrant[] }>(res);
   return grants;
 }
@@ -37,7 +31,7 @@ export async function fetchGrants(userId: string): Promise<AccessGrant[]> {
 export async function createGrant(
   input: CreateGrantInput & { confirmWarning?: boolean },
 ): Promise<{ requiresConfirmation: true; warning: { code: string; message: string } } | { requiresConfirmation?: false; grant: AccessGrant }> {
-  const res = await fetch('/api/access-management?resource=grants', {
+  const res = await apiFetch('/api/access-management?resource=grants', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -46,7 +40,7 @@ export async function createGrant(
 }
 
 export async function revokeGrant(id: string): Promise<AccessGrant> {
-  const res = await fetch('/api/access-management?resource=grants', {
+  const res = await apiFetch('/api/access-management?resource=grants', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, action: 'revoke' }),

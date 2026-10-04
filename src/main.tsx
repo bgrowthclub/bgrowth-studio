@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { App } from './App'
+import { AuthProvider } from './auth/AuthContext'
 
 const params = new URLSearchParams(window.location.search)
 
@@ -11,6 +12,8 @@ const ownerEmail = params.get('user') ?? 'benterprisesusa@gmail.com'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App ownerEmail={ownerEmail} />
+    <AuthProvider>
+      <App ownerEmail={ownerEmail} />
+    </AuthProvider>
   </StrictMode>,
 )

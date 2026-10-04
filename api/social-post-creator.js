@@ -19,6 +19,7 @@ import {
   buildHashtagsPrompt,
 } from './_lib/socialPostCreator/promptBuilder.js';
 import { DEFAULT_CONTENT_LANGUAGE, CONTENT_LANGUAGE_LABELS } from './_lib/socialPostCreator/contentSpecs.js';
+import { requireAdmin } from './_lib/requireAdmin.js';
 
 function normalizeLanguage(language) {
   return language && CONTENT_LANGUAGE_LABELS[language] ? language : DEFAULT_CONTENT_LANGUAGE;
@@ -113,6 +114,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
   const { action } = req.query;

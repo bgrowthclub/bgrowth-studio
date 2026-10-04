@@ -1,3 +1,4 @@
+import { requireAdmin } from './_lib/requireAdmin.js';
 // Consolidated proxy to the BGrowth Publishing Engine (lives in
 // bgrowth-portal) — Vercel Hobby plan's 12-function limit; see the
 // Serverless Function audit. Was two files (publish.js, archive.js);
@@ -184,9 +185,10 @@ async function handleArchive(req, res) {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
   const action = req.query.action ?? 'publish';
