@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
 import { runGeneration } from '../_lib/ai/runGeneration.js';
 import { buildGenerationPrompt } from '../_lib/contentEngine/promptBuilder.js';
 import { CONTENT_SPECS, PLATFORM_LABELS } from '../_lib/contentEngine/contentSpecs.js';
+import { requireAdmin } from '../_lib/requireAdmin.js';
 
 const VALID_PLATFORMS = Object.keys(PLATFORM_LABELS);
 const VALID_CONTENT_TYPES = Object.keys(CONTENT_SPECS);
@@ -102,6 +103,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { campaignId, sourceContentItemId, variationType } = req.body ?? {};

@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
+import { requireAdmin } from '../_lib/requireAdmin.js';
 
 /** Read-only list of active content strategies — seeded in the migration, editable later straight in Supabase if needed. */
 export default async function handler(req, res) {
@@ -6,6 +7,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const supabase = getSupabaseAdmin();

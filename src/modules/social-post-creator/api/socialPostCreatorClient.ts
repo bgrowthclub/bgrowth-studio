@@ -1,5 +1,6 @@
 import type { ContentLanguage, CopyTarget, GeneratedCopy, HashtagGroups, PhotoAnalysis, PostObjective, Platform } from '../types';
 
+import { apiFetch } from '../../../lib/apiClient';
 async function parseOrThrow<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data?.ok === false) throw new Error(data.error || `Request failed (${response.status})`);
@@ -7,7 +8,7 @@ async function parseOrThrow<T>(response: Response): Promise<T> {
 }
 
 async function post<T>(action: string, body: unknown): Promise<T> {
-  const res = await fetch(`/api/social-post-creator?action=${action}`, {
+  const res = await apiFetch(`/api/social-post-creator?action=${action}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

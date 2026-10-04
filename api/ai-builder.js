@@ -6,6 +6,7 @@
 // its original file — no behavior change.
 
 import { GoogleGenAI } from '@google/genai';
+import { requireAdmin } from './_lib/requireAdmin.js';
 
 // --- shared by generate ---
 function applyChecklistBlueprint(product, blueprint, productType) {
@@ -192,8 +193,9 @@ export default async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
   const action = req.query.action;
   if (action === 'generate') return handleGenerate(req, res);
   if (action === 'generate-blueprint') return handleGenerateBlueprint(req, res);

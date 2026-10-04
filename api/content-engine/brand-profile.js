@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
+import { requireAdmin } from '../_lib/requireAdmin.js';
 
 /**
  * Reads/updates the single content_engine.brand_profile row (id is pinned
@@ -10,6 +11,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const supabase = getSupabaseAdmin();
 

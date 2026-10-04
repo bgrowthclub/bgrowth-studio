@@ -84,6 +84,12 @@ export function AdminLoginPage() {
             {isSubmitting ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
+        <p className="mt-5 text-center text-xs text-navy-400">
+          Same account as bgrowth.app.{' '}
+          <a href="https://bgrowth.app/forgot-password" className="font-semibold text-brand-600 hover:underline">
+            Forgot your password?
+          </a>
+        </p>
       </div>
     </div>
   );

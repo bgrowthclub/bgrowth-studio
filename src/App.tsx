@@ -10,6 +10,7 @@ import { AIBuilder } from './modules/ai-builder/AIBuilder';
 import { ProductEngine } from './modules/product-engine/ProductEngine';
 import { KnowledgeEngine } from './modules/knowledge-engine/KnowledgeEngine';
 import { ContentEngine } from './modules/content-engine/ContentEngine';
+import { RequireAdmin } from './auth/RequireAdmin';
 import { AccessManagement } from './modules/access-management/AccessManagement';
 import { SocialPostCreator } from './modules/social-post-creator/SocialPostCreator';
 import { ProductHeader } from './components/ProductHeader';
@@ -237,7 +238,21 @@ function PublicCalcFill({ calcId }: { calcId: string }) {
 }
 
 // -----------------------------------------------------------------------
+// Public fill links (?template=, ?calc=, ?planner=) stay open — they are what
+// customers open. Everything else is Studio itself: only members listed in
+// portal.studio_admins get in (RequireAdmin), and every privileged /api/*
+// route checks the same list server-side (api/_lib/requireAdmin.js).
 export function App({ ownerEmail }: { ownerEmail: string }) {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('template') || params.get('calc') || params.get('planner')) return <StudioApp ownerEmail={ownerEmail} />;
+  return (
+    <RequireAdmin>
+      <StudioApp ownerEmail={ownerEmail} />
+    </RequireAdmin>
+  );
+}
+
+function StudioApp({ ownerEmail }: { ownerEmail: string }) {
   const params = new URLSearchParams(window.location.search);
   const templateId = params.get('template');
   const calcId = params.get('calc');
@@ -303,18 +318,10 @@ export function App({ ownerEmail }: { ownerEmail: string }) {
     <ContentEngine ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
   );
 
-  // Phase 1: no Studio-wide authentication exists yet (see
-  // 0022_studio_admins.sql, prepared but not applied) — this renders
-  // unauthenticated, same as every other tool including Content Engine.
-  // Temporary: acceptable only while Studio stays private to Andreia/Bruno.
-  // Re-wrap in RequireAdmin once Studio-wide auth is activated (see the
-  // Access Management Phase 1 audit for the exact reconnection steps).
   if (activeTool === 'access-management') return (
     <AccessManagement onHome={() => setActiveTool(null)} />
   );
 
-  // Same Phase 1 no-auth posture as every other tool above — see the
-  // comment on access-management just above.
   if (activeTool === 'social-post-creator') return (
     <SocialPostCreator ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
   );

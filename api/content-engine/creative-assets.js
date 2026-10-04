@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
 import { runMediaGeneration } from '../_lib/ai/mediaGeneration.js';
 import { deleteCreativeAssetFile, uploadCreativeAsset } from '../_lib/uploadCreativeAsset.js';
+import { requireAdmin } from '../_lib/requireAdmin.js';
 
 const VALID_ASSET_TYPES = ['image'];
 // Only a content_item that has moved past authoring/review may spend money
@@ -50,6 +51,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const supabase = getSupabaseAdmin();
 

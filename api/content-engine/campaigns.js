@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
 import { PLATFORM_LABELS } from '../_lib/contentEngine/contentSpecs.js';
+import { requireAdmin } from '../_lib/requireAdmin.js';
 
 const VALID_PLATFORMS = Object.keys(PLATFORM_LABELS);
 
@@ -24,6 +25,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const supabase = getSupabaseAdmin();
 

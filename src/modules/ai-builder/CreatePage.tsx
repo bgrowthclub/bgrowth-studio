@@ -33,6 +33,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { DigitalProduct, ProductType } from './types';
 import ProductLayoutPreview from './ProductLayoutPreview';
 
+import { apiFetch } from '../../lib/apiClient';
 interface CreatePageProps {
   onGenerate: (prompt: string, type?: string, blueprint?: any) => Promise<void>;
   isGenerating: boolean;
@@ -177,7 +178,7 @@ export default function CreatePage({ onGenerate, isGenerating, recentProducts, o
       setBlueprintError(null);
       const safePrompt = prompt.length > PROMPT_MAX_CHARS ? prompt.slice(0, PROMPT_MAX_CHARS) : prompt;
 
-      const response = await fetch('/api/ai-builder?action=generate-blueprint', {
+      const response = await apiFetch('/api/ai-builder?action=generate-blueprint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: safePrompt, productType: selectedType })

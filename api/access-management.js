@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 import { checkForDuplicateGrant, deriveGrantStatus } from './_lib/accessGrants.js';
+import { requireAdmin } from './_lib/requireAdmin.js';
 
 /**
  * Diagnostic-only: logs which stage failed, server-side, without ever
@@ -50,18 +51,11 @@ function logPostgrestFailure(stage, error, status, statusText) {
  * `?resource=members` vs `?resource=grants`, with the exact same
  * method-based dispatch grants.js already had (GET/POST/PATCH) preserved
  * verbatim underneath. No behavior change — same queries, same response
- * shapes, same duplicate-protection rules, same Phase 1 no-auth posture.
+ * shapes, same duplicate-protection rules, same duplicate-protection rules.
  *
- * PHASE 1 — TEMPORARY, NO AUTH: this endpoint has no requireAdmin() gate.
- * Studio has no per-user authentication today (see the Access Management
- * Phase 1 audit — 0022_studio_admins.sql is prepared but not applied). The
- * only protection right now is whatever restricts who can reach this
- * deployment at all — anyone who can reach it can search members and
- * create/revoke real Workspace access. Re-add `const admin = await
- * requireAdmin(req); if (!admin) return res.status(401)...` here, and
- * restore `granted_by: admin.email` in the grants/POST branch, once
- * Studio-wide auth is activated. Do not expose this endpoint more broadly
- * until then.
+ * Gated by requireAdmin() (portal.studio_admins, migration 0022): every
+ * request needs a Studio admin's session token, and grants record that
+ * admin's e-mail in granted_by.
  */
 
 /**
@@ -166,7 +160,7 @@ async function handleMembers(req, res, supabase) {
  * table, no schema change, no touching has_workspace_access(), licenses,
  * trial logic, or Stripe.
  */
-async function handleGrants(req, res, supabase) {
+async function handleGrants(req, res, supabase, admin) {
   if (req.method === 'GET') {
     const userId = req.query.userId;
     if (!userId) return res.status(400).json({ error: 'userId is required.' });
@@ -212,12 +206,8 @@ async function handleGrants(req, res, supabase) {
       if (parsed <= new Date()) return res.status(400).json({ error: 'expiresAt must be in the future.' });
     }
 
-    // grantedBy is deliberately never read from req.body. Phase 1 has no
-    // server-verified admin identity to use instead (see the file-level
-    // comment above) — a fixed literal below stands in until Studio-wide
-    // auth is activated and requireAdmin()'s admin.email can be restored
-    // here. The existing `note` field remains available for Andreia/Bruno
-    // to record who/why by hand in the meantime.
+    // grantedBy is never read from req.body — it is the admin requireAdmin()
+    // verified for this request.
     const { data: existingGrants, error: existingError } = await supabase
       .schema('portal')
       .from('access_grants')
@@ -246,7 +236,7 @@ async function handleGrants(req, res, supabase) {
         product_id: scope === 'specific' ? productId : null,
         expires_at: expiresAt ?? null,
         note: note || null,
-        granted_by: 'BGrowth Studio (Phase 1 — no per-user auth yet)',
+        granted_by: admin.email,
       })
       .select('*, products(id, name, slug)')
       .single();
@@ -308,6 +298,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const resource = req.query.resource;
   if (resource !== 'members' && resource !== 'grants') {
@@ -326,7 +318,7 @@ export default async function handler(req, res) {
 
   try {
     if (resource === 'members') return await handleMembers(req, res, supabase);
-    return await handleGrants(req, res, supabase);
+    return await handleGrants(req, res, supabase, admin);
   } catch (err) {
     logDiagnostic(`${resource}:unhandled`, err);
     return res.status(500).json({ error: 'Unexpected server error.' });
