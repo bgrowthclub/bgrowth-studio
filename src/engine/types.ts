@@ -125,6 +125,8 @@ export interface PublishingMetadata {
   trialDuration?: number | null;
   /** Only 'days' is accepted by the Portal today — see TemplateBuilderScreen's own publish-time validation. The other values exist so the unit picker is ready for a future Portal release without another Studio change. */
   trialUnit?: 'days' | 'weeks' | 'months' | 'hours';
+  /** Category slug (portal.workspace_categories) — kept here too, so reopening the checklist never loses it. */
+  categorySlug?: string | null;
 }
 
 export interface ChecklistConfig {

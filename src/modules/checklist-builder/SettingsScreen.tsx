@@ -1,5 +1,6 @@
+import { CATEGORY_ADMIN_URL } from '../../lib/workspaceCategories';
 import { useState, useRef } from 'react';
-import { Save, Upload, X, Plus, Tag } from 'lucide-react';
+import { Save, Upload, X } from 'lucide-react';
 import { ModuleHeader } from './ModuleHeader';
 import { Input } from '../../components/ui/Input';
 import { PrimaryButton, SecondaryButton } from '../../components/ui/Button';
@@ -44,20 +45,7 @@ export function SettingsScreen({ ownerEmail, onBack }: SettingsScreenProps) {
   const [settings, setSettings] = useState<BuilderSettings>(() => loadSettings(ownerEmail));
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
   const [previewLogo, setPreviewLogo] = useState<string | null>(settings.logoUrl);
-  const [newCategory, setNewCategory] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const addCategory = () => {
-    const trimmed = newCategory.trim();
-    if (!trimmed) return;
-    if ((settings.categories ?? []).some(c => c.toLowerCase() === trimmed.toLowerCase())) return;
-    setSettings(s => ({ ...s, categories: [...(s.categories ?? []), trimmed] }));
-    setNewCategory('');
-  };
-
-  const removeCategory = (cat: string) => {
-    setSettings(s => ({ ...s, categories: (s.categories ?? []).filter(c => c !== cat) }));
-  };
 
   const showToast = (msg: string) => {
     setToast({ message: msg, visible: true });
@@ -156,51 +144,16 @@ export function SettingsScreen({ ownerEmail, onBack }: SettingsScreenProps) {
             </div>
           </div>
 
-          {/* Categories */}
+          {/* Categories — shared with the BGrowth Website */}
           <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-card">
             <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-navy-400">Categories</p>
-            <p className="mb-4 text-xs text-navy-400">Used to filter and organize your templates.</p>
-
-            {/* Lista de categorias */}
-            <div className="mb-3 flex flex-wrap gap-2">
-              {(settings.categories ?? []).length === 0 && (
-                <p className="text-xs text-navy-300 italic">No categories yet.</p>
-              )}
-              {(settings.categories ?? []).map((cat) => (
-                <span key={cat} className="flex items-center gap-1.5 rounded-full border border-navy-100 bg-navy-50 px-3 py-1 text-xs font-semibold text-navy-700">
-                  <Tag className="h-3 w-3 text-brand" />
-                  {cat}
-                  <button
-                    type="button"
-                    onClick={() => removeCategory(cat)}
-                    className="ml-0.5 text-navy-300 hover:text-red-500 transition-colors"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-
-            {/* Adicionar nova categoria */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
-                placeholder="e.g. Notary, Cleaning, Real Estate..."
-                className="flex-1 rounded-xl border border-navy-100 px-3.5 py-2 text-sm text-navy-800 placeholder-navy-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-              />
-              <button
-                type="button"
-                onClick={addCategory}
-                disabled={!newCategory.trim()}
-                className="flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
-              >
-                <Plus className="h-4 w-4" />
-                Add
-              </button>
-            </div>
+            <p className="text-xs text-navy-400">
+              Categories now live in one list shared with the website’s filters, so they’re the same on every computer.{' '}
+              <a href={CATEGORY_ADMIN_URL} target="_blank" rel="noreferrer" className="font-semibold text-brand hover:underline">
+                Manage them in the website’s Admin → Categories
+              </a>
+              .
+            </p>
           </div>
 
           {/* Default color */}

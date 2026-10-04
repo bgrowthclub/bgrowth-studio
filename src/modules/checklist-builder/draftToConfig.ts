@@ -85,6 +85,7 @@ export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
       isTrialEligible: draft.isTrialEligible ?? true,
       trialDuration: draft.trialDuration ?? null,
       trialUnit: draft.trialUnit ?? 'days',
+      categorySlug: draft.category || null,
     },
   };
 }
