@@ -3,11 +3,19 @@
  * Saves and loads all Studio data to/from Google Sheets via GAS proxy
  */
 
+import { supabase } from './supabaseClient';
+
 // Both GET and POST are served by the same consolidated api/gas-proxy.js
 // (see the Serverless Function consolidation audit) — still two constants
 // since gasCall's method-based branching below reads cleanly either way.
 const GAS_PROXY_GET = '/api/gas-proxy';
 const GAS_PROXY_POST = '/api/gas-proxy';
+
+// The proxy lets anonymous callers only read; saving needs the admin's token.
+async function gasAuthHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
+}
 
 async function gasCall(action: string, params: Record<string, string> = {}, method: 'GET' | 'POST' = 'GET'): Promise<any> {
   const url = new URL(method === 'POST' ? GAS_PROXY_POST : GAS_PROXY_GET, window.location.origin);
@@ -16,14 +24,15 @@ async function gasCall(action: string, params: Record<string, string> = {}, meth
   
   if (method === 'GET') {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), { headers: await gasAuthHeaders() });
     const json = await res.json();
     return json;
   } else {
     const res = await fetch(url.toString(), {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(await gasAuthHeaders()),
       },
       body: JSON.stringify(params) // Envia o payload com segurança no corpo da requisição
     });

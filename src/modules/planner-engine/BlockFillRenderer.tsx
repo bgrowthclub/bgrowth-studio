@@ -1,3 +1,4 @@
+import { safeUrl } from '../../lib/safeContent';
 import { useState, useRef } from 'react';
 import { type PlannerBlock, type BlockType } from './types';
 import { cn } from '../../lib/utils';
@@ -337,14 +338,14 @@ function ResourcesBlockFill({ config, data, onChange }: any) {
         <div key={r.id} className="flex items-center gap-2 rounded-lg border border-navy-100 px-3 py-2">
           <span className="text-base">📎</span>
           <span className="flex-1 text-sm font-medium text-navy-700">{r.label}</span>
-          {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline">Open →</a>}
+          {r.url && <a href={safeUrl(r.url)} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline">Open →</a>}
         </div>
       ))}
       {extraResources.map((r, idx) => (
         <div key={idx} className="flex items-center gap-2 rounded-lg border border-navy-100 px-3 py-2">
           <span className="text-base">📎</span>
           <span className="flex-1 text-sm text-navy-700">{r.label}</span>
-          {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline">Open →</a>}
+          {r.url && <a href={safeUrl(r.url)} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline">Open →</a>}
         </div>
       ))}
       {config.allowAddItems && (

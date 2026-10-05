@@ -1,3 +1,4 @@
+import { safeHtml } from '../../lib/safeContent';
 import { Trash2, Copy } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -62,7 +63,7 @@ export function FieldEditor({ field, onChange, onDelete, onDuplicate }: FieldEdi
                 />
                 {field.label && (
                   <div className="rounded-lg border border-navy-100 bg-navy-50 px-3 py-2 text-sm text-navy-600"
-                    dangerouslySetInnerHTML={{ __html: field.label }} />
+                    dangerouslySetInnerHTML={{ __html: safeHtml(field.label) }} />
                 )}
               </div>
             ) : (
