@@ -117,7 +117,7 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
         templateId: t.templateId,
         name: config.brand?.name ?? t.name,
         primaryColor: config.brand?.primaryColor ?? '#1061EC',
-        category: t.category,
+        category: publishing.categorySlug || t.category || undefined,
         shortDescription: publishing.shortDescription,
         coverImageUrl: publishing.coverImageUrl,
         isFree: publishing.isFree ?? false,

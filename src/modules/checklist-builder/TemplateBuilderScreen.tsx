@@ -24,7 +24,7 @@ import { BRAND_COLOR_PRESETS, TRIAL_UNIT_OPTIONS } from './builderTypes';
 import type { SectionType, ChecklistConfig } from '../../engine/types';
 import { cn, compressImage, newKey } from '../../lib/utils';
 import { publishToPortal, archiveProduct, slugifyProductName } from '../../lib/publishingEngine';
-import { loadSettings } from './SettingsScreen';
+import { useWorkspaceCategories, matchCategorySlug, fetchPublishedCategorySlug, CATEGORY_ADMIN_URL } from '../../lib/workspaceCategories';
 import { scanTemplateIntegrity, repairTemplateIntegrity, type TemplateIntegrityReport, type IdRepair } from './templateIntegrity';
 
 /** A cover image the user just picked, staged for the next publish — not yet uploaded. */
@@ -80,7 +80,25 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   const [integrityReport, setIntegrityReport] = useState<TemplateIntegrityReport | null>(null);
   const [isFixingIds, setIsFixingIds] = useState(false);
   const [lastFixSummary, setLastFixSummary] = useState<IdRepair[] | null>(null);
-  const categories = loadSettings(ownerEmail).categories ?? [];
+  const { rows: categoryRows, areas: categoryAreas, status: categoryStatus } = useWorkspaceCategories();
+
+  // The category is a slug from the shared list. An older checklist may hold
+  // a name typed in Settings, or nothing while the published Workspace
+  // already has one (set in the Website's Admin) — settle both once.
+  useEffect(() => {
+    if (categoryStatus !== 'ready') return;
+    const matched = matchCategorySlug(draft.category, categoryRows);
+    if (draft.category && matched && matched !== draft.category) {
+      setDraft((d) => ({ ...d, category: matched }));
+      return;
+    }
+    if (!draft.category && draft.templateId && draft.publishStatus === 'published') {
+      fetchPublishedCategorySlug(draft.templateId).then((slug) => {
+        if (slug) setDraft((d) => (d.category ? d : { ...d, category: slug }));
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryStatus, draft.templateId]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -232,12 +250,15 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
 
     setIsPublishing(true);
     try {
+      // Never publish a blank over a category set in the website's Admin.
+      const categorySlug =
+        draft.category || (draft.templateId ? await fetchPublishedCategorySlug(draft.templateId).catch(() => undefined) : undefined);
       const result = await publishToPortal({
         studioProductId: draft.templateId,
         config: draftToConfig(draft),
         slug: slugifyProductName(draft.name),
         shortDescription: draft.shortDescription,
-        categorySlug: draft.category,
+        categorySlug,
         status: 'published',
         publishedBy: ownerEmail,
         coverImage: pendingCoverImage ?? undefined,
@@ -257,6 +278,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
 
       const updatedDraft: BuilderDraft = {
         ...draft,
+        category: categorySlug || undefined,
         coverImageUrl: result.product?.coverImageUrl ?? draft.coverImageUrl,
         currency: result.product?.currency ?? draft.currency ?? 'usd',
         publishStatus: 'published',
@@ -515,15 +537,24 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
                     className="w-full rounded-xl border border-navy-100 bg-white px-3 py-2 text-sm text-navy-800 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                   >
                     <option value="">No category</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
+                    {draft.category && categoryStatus === 'ready' && !matchCategorySlug(draft.category, categoryRows) && (
+                      <option value={draft.category}>{draft.category} (not in the list)</option>
+                    )}
+                    {categoryAreas.map((area) => (
+                      <optgroup key={area.id} label={area.name}>
+                        <option value={area.slug}>{area.name} — general</option>
+                        {area.children.map((c) => (
+                          <option key={c.id} value={c.slug}>{c.name}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
-                  {categories.length === 0 && (
-                    <p className="mt-1 text-xs text-navy-300">
-                      No categories yet — add one in Settings first.
-                    </p>
-                  )}
+                  <p className="mt-1 text-xs text-navy-300">
+                    {categoryStatus === 'error' ? 'Could not load the categories. ' : 'Same list as the website’s filters. '}
+                    <a href={CATEGORY_ADMIN_URL} target="_blank" rel="noreferrer" className="font-semibold text-brand hover:underline">
+                      Manage categories
+                    </a>
+                  </p>
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">
