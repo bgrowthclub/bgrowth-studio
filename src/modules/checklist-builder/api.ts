@@ -4,6 +4,13 @@
 import type { ChecklistTemplate, ChecklistInstance } from './types';
 import type { ChecklistData } from '../../engine/types';
 import { compressString } from '../../lib/compress';
+import { supabase } from '../../lib/supabaseClient';
+
+// The proxy lets anonymous callers only read; saving needs the admin's token.
+async function gasAuthHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
+}
 
 const IS_DEV = import.meta.env.DEV;
 const DEV_URL = 'http://localhost:8787';
@@ -17,7 +24,7 @@ async function gasGet<T>(params: Record<string, string>): Promise<T> {
     url = new URL('/api/gas-proxy', window.location.origin);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   }
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: await gasAuthHeaders() });
   const json = (await res.json()) as { ok: boolean; data: T; error?: string };
   if (!json.ok) throw new Error(json.error ?? 'Unknown GAS error');
   return json.data;
@@ -30,7 +37,7 @@ async function gasPost<T>(params: Record<string, string>): Promise<T> {
   const endpoint = IS_DEV ? DEV_URL : '/api/gas-proxy';
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await gasAuthHeaders()) },
     body: JSON.stringify(params),
   });
   const text = await res.text();

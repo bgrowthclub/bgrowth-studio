@@ -27,6 +27,14 @@ export function evaluateFormula(formula: Formula, values: CalculatorValues): num
       expr = expr.replace(new RegExp(`\\b${varName}\\b`, 'g'), `__v${idx}`);
     });
 
+    // Only arithmetic may reach new Function: after the variables, nothing
+    // but numbers, operators, parentheses and Math.pow/min/max/round/abs/
+    // floor/ceil/sqrt is allowed — anything else evaluates to 0.
+    const leftover = expr
+      .replace(/__v\d+/g, '')
+      .replace(/Math\.(pow|min|max|round|abs|floor|ceil|sqrt)\b/g, '');
+    if (!/^[0-9+\-*\/%().,?:<>=!&|\s]*$/.test(leftover)) return 0;
+
     const paramNames = vars.map((_, idx) => `__v${idx}`);
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
     const fn = new Function(...paramNames, `'use strict'; return (${expr});`);
