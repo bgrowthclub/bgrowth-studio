@@ -5,9 +5,11 @@ function draftSectionToConfig(s: DraftSection, index: number): SectionConfig {
   const base = {
     id: s.id,
     number: index + 1,
-    title: s.title,
-    description: s.description,
-    icon: s.icon,
+    // The Portal requires these as text — an imported template can leave
+    // them out, which used to fail the whole publish.
+    title: s.title ?? '',
+    description: s.description ?? '',
+    icon: s.icon || 'file-text',
     optional: s.optional,
     whyItMatters: s.whyItMatters,
     tip: s.tip,
@@ -17,7 +19,7 @@ function draftSectionToConfig(s: DraftSection, index: number): SectionConfig {
     const fields: FieldConfig[] = (s.fields ?? []).map((f: DraftField) => {
       const { _key, ...rest } = f;
       void _key;
-      return rest as FieldConfig;
+      return { ...rest, label: rest.label ?? '', icon: rest.icon || 'type' } as FieldConfig;
     });
     return { ...base, type: 'form', fields };
   }
@@ -25,7 +27,7 @@ function draftSectionToConfig(s: DraftSection, index: number): SectionConfig {
     const items: ChecklistItemConfig[] = (s.items ?? []).map((i: DraftItem) => {
       const { _key, ...rest } = i;
       void _key;
-      return rest as ChecklistItemConfig;
+      return { ...rest, label: rest.label ?? '' } as ChecklistItemConfig;
     });
     return { ...base, type: 'checklist', items };
   }
@@ -33,7 +35,7 @@ function draftSectionToConfig(s: DraftSection, index: number): SectionConfig {
     const items: ChecklistItemConfig[] = (s.items ?? []).map((i: DraftItem) => {
       const { _key, ...rest } = i;
       void _key;
-      return rest as ChecklistItemConfig;
+      return { ...rest, label: rest.label ?? '' } as ChecklistItemConfig;
     });
     return { ...base, type: 'outcome', items };
   }
@@ -61,7 +63,8 @@ export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
     brand: {
       name: draft.name || 'Untitled Checklist',
       companyLabel: 'BGrowth',
-      primaryColor: draft.primaryColor,
+      // The Portal accepts only a hex color.
+      primaryColor: /^#[0-9a-fA-F]{3,8}$/.test(draft.primaryColor ?? '') ? draft.primaryColor : '#1061EC',
     },
     footer: {
       proTip: 'Complete all sections for the most accurate recordkeeping.',
@@ -92,4 +95,39 @@ export function draftToConfig(draft: BuilderDraft): ChecklistConfig {
 
 export function draftToConfigJson(draft: BuilderDraft): string {
   return JSON.stringify(draftToConfig(draft));
+}
+
+interface PublishIssue {
+  path?: (string | number)[];
+  message?: string;
+}
+
+// Turns the Portal's validation issues ("sections.2.fields.1.type: Invalid
+// enum value") into words a person can act on: which section, which field
+// or item, and what is wrong. The first issue goes in the toast; all of
+// them go to the console.
+export function describePublishIssues(issues: unknown, config: ReturnType<typeof draftToConfig>): string | null {
+  if (!Array.isArray(issues) || issues.length === 0) return null;
+  const describe = (issue: PublishIssue): string => {
+    const path = issue.path ?? [];
+    const parts: string[] = [];
+    if (path[0] === 'sections' && typeof path[1] === 'number') {
+      const section = config.sections[path[1]];
+      parts.push(`Section ${path[1] + 1}${section?.title ? ` "${section.title}"` : ''}`);
+      if ((path[2] === 'fields' || path[2] === 'items') && typeof path[3] === 'number') {
+        const list = (section as unknown as Record<string, { label?: string }[] | undefined>)?.[path[2]];
+        const label = list?.[path[3]]?.label;
+        parts.push(`${path[2] === 'fields' ? 'field' : 'item'} ${path[3] + 1}${label ? ` "${label}"` : ''}`);
+        if (path[4] !== undefined) parts.push(String(path[4]));
+      } else if (path[2] !== undefined) {
+        parts.push(String(path[2]));
+      }
+    } else if (path.length > 0) {
+      parts.push(path.join(' › '));
+    }
+    return `${parts.join(' › ')}${parts.length ? ': ' : ''}${issue.message ?? 'invalid value'}`;
+  };
+  const list = (issues as PublishIssue[]).map(describe);
+  console.error('Publish validation issues', list);
+  return list.length > 1 ? `${list[0]} (+${list.length - 1} more — see console)` : list[0];
 }

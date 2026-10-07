@@ -18,7 +18,7 @@ import { PrimaryButton, SecondaryButton } from '../../components/ui/Button';
 import { Toast } from '../../components/Toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { api_saveTemplate } from './api';
-import { draftToConfig, draftToConfigJson } from './draftToConfig';
+import { describePublishIssues, draftToConfig, draftToConfigJson } from './draftToConfig';
 import type { BuilderDraft, DraftSection } from './builderTypes';
 import { BRAND_COLOR_PRESETS, TRIAL_UNIT_OPTIONS } from './builderTypes';
 import type { SectionType, ChecklistConfig } from '../../engine/types';
@@ -104,7 +104,9 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
 
   const showToast = useCallback((msg: string) => {
     setToast({ message: msg, visible: true });
-    window.setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2400);
+    // Errors stay up longer so there's time to read which section failed.
+    const ms = msg.startsWith('Publish failed') ? 9000 : 2400;
+    window.setTimeout(() => setToast((t) => ({ ...t, visible: false })), ms);
   }, []);
 
   const handleCoverImageSelect = async (file: File) => {
@@ -253,9 +255,10 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
       // Never publish a blank over a category set in the website's Admin.
       const categorySlug =
         draft.category || (draft.templateId ? await fetchPublishedCategorySlug(draft.templateId).catch(() => undefined) : undefined);
+      const config = draftToConfig(draft);
       const result = await publishToPortal({
         studioProductId: draft.templateId,
-        config: draftToConfig(draft),
+        config,
         slug: slugifyProductName(draft.name),
         shortDescription: draft.shortDescription,
         categorySlug,
@@ -272,7 +275,8 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
       });
 
       if (!result.ok) {
-        showToast('Publish failed — ' + (result.error ?? 'unknown error'));
+        const details = describePublishIssues(result.issues, config);
+        showToast('Publish failed — ' + (details ?? result.error ?? 'unknown error'));
         return;
       }
 
