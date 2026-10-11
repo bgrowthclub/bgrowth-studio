@@ -17,6 +17,8 @@ export interface PublishToPortalInput {
   slug: string;
   shortDescription: string;
   categorySlug?: string;
+  /** The product's tags, from the shared list (Portal migration 0048). Omitted = keep its current tags. */
+  tags?: string[];
   status: PublicationStatus;
   publishedBy: string;
   changeNotes?: string;
@@ -75,6 +77,7 @@ export async function publishToPortal(input: PublishToPortalInput): Promise<Publ
         shortDescription: input.shortDescription,
         contentType: 'workspace',
         categorySlug: input.categorySlug ? slugify(input.categorySlug) : undefined,
+        tags: input.tags,
         content: input.config,
         status: input.status,
         destinationKey: 'portal',
@@ -122,6 +125,7 @@ export async function publishCalculatorToPortal(input: PublishCalculatorInput): 
         shortDescription: input.shortDescription,
         contentType: 'calculator',
         categorySlug: input.categorySlug ? slugify(input.categorySlug) : undefined,
+        tags: input.tags,
         content: input.config,
         status: input.status,
         destinationKey: 'portal',
