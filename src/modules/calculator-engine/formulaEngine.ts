@@ -1,5 +1,14 @@
 import type { Formula, CalculatorValues, CalculatorResults, CalculatorConfig } from './types';
 
+// A field's value as a formula sees it.
+function toArg(val: unknown): number | string {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'boolean') return val ? 1 : 0;
+  const text = String(val ?? '').trim();
+  if (text === '') return 0;
+  return /^-?\d+(\.\d+)?$/.test(text) ? parseFloat(text) : text;
+}
+
 /**
  * Safely evaluates a formula expression given a map of variable values.
  *
@@ -15,33 +24,46 @@ import type { Formula, CalculatorValues, CalculatorResults, CalculatorConfig } f
 export function evaluateFormula(formula: Formula, values: CalculatorValues): number {
   try {
     const vars = formula.variables;
-    const args = vars.map((v) => {
-      const val = values[v];
-      return typeof val === 'number' ? val : parseFloat(String(val)) || 0;
+    // Numbers stay numbers (numeric text too, e.g. a year picked in a
+    // select); other text — a select/radio choice like "roundtrip" — stays
+    // text so formulas can compare it: trip_type === "roundtrip".
+    const args = vars.map((v) => toArg(values[v]));
+
+    // Quoted words in the formula ("roundtrip") are set aside first, so a
+    // variable name inside them is never replaced and the safety check
+    // below sees only placeholders.
+    const strings: string[] = [];
+    let expr = formula.expression.replace(/"([A-Za-z0-9 _-]*)"|'([A-Za-z0-9 _-]*)'/g, (_m, dq: string | undefined, sq: string | undefined) => {
+      strings.push(dq ?? sq ?? '');
+      return `__s${strings.length - 1}`;
     });
 
-    // Build a function: (a, b, c) => expression
     // Replace variable names with positional arg names
-    let expr = formula.expression;
     vars.forEach((varName, idx) => {
       expr = expr.replace(new RegExp(`\\b${varName}\\b`, 'g'), `__v${idx}`);
     });
 
-    // Only arithmetic may reach new Function: after the variables, nothing
-    // but numbers, operators, parentheses and Math.pow/min/max/round/abs/
-    // floor/ceil/sqrt is allowed — anything else evaluates to 0.
+    // Only arithmetic may reach new Function: after the variables and the
+    // quoted words, nothing but numbers, operators, parentheses and
+    // Math.pow/min/max/round/abs/floor/ceil/sqrt is allowed — anything else
+    // evaluates to 0.
     const leftover = expr
       .replace(/__v\d+/g, '')
+      .replace(/__s\d+/g, '')
       .replace(/Math\.(pow|min|max|round|abs|floor|ceil|sqrt)\b/g, '');
     if (!/^[0-9+\-*\/%().,?:<>=!&|\s]*$/.test(leftover)) return 0;
 
+    const finalExpr = expr.replace(/__s(\d+)/g, (_m, i: string) => JSON.stringify(strings[Number(i)]));
     const paramNames = vars.map((_, idx) => `__v${idx}`);
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    const fn = new Function(...paramNames, `'use strict'; return (${expr});`);
+    const fn = new Function(...paramNames, `'use strict'; return (${finalExpr});`);
     const result = fn(...args);
 
+    if (typeof result === 'boolean') return result ? 1 : 0;
     if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) return 0;
-    return Math.round(result * 100) / 100; // round to 2 decimal places
+    // Full precision here: a rate like 7% / 12 = 0.00583 must not become
+    // 0.01 before the next formula uses it. computeAll rounds what it shows.
+    return result;
   } catch {
     return 0;
   }
@@ -75,8 +97,8 @@ export function computeAll(config: CalculatorConfig, values: CalculatorValues): 
     });
 
     const val = evaluateFormula(augmented, namespace);
-    results[formula.id] = val;
-    namespace[formula.id] = val; // make available to subsequent formulas
+    results[formula.id] = Math.round(val * 100) / 100; // shown to 2 decimals
+    namespace[formula.id] = val; // later formulas get the full value
   }
 
   return results;

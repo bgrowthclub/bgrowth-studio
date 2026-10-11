@@ -39,16 +39,16 @@ export const mileageDeductionCalc: CalculatorConfig = {
 
   formulas: [
     { id: 'irs_rate', name: 'IRS Rate', expression: 'tax_year === 2026 ? 0.725 : 0.700', variables: ['tax_year'] },
-    { id: 'total_miles', name: 'Total Miles', expression: 'trip_type === 1 ? distance * 2 * num_trips : distance * num_trips', variables: ['trip_type', 'distance', 'num_trips'] },
-    { id: 'standard_deduction', name: 'Standard Deduction', expression: 'distance * num_trips * 0.725', variables: ['distance', 'num_trips'] },
+    { id: 'total_miles', name: 'Total Miles', expression: 'trip_type === "roundtrip" ? distance * 2 * num_trips : distance * num_trips', variables: ['trip_type', 'distance', 'num_trips'] },
+    { id: 'standard_deduction', name: 'Standard Deduction', expression: 'total_miles * irs_rate', variables: ['total_miles', 'irs_rate'] },
     { id: 'actual_cost_per_mile', name: 'Actual Cost per Mile', expression: 'gas_cost + maintenance + insurance_per_mile', variables: ['gas_cost', 'maintenance', 'insurance_per_mile'] },
-    { id: 'actual_deduction', name: 'Actual Cost Deduction', expression: 'distance * num_trips * actual_cost_per_mile', variables: ['distance', 'num_trips', 'actual_cost_per_mile'] },
+    { id: 'actual_deduction', name: 'Actual Cost Deduction', expression: 'total_miles * actual_cost_per_mile', variables: ['total_miles', 'actual_cost_per_mile'] },
     { id: 'tax_savings', name: 'Estimated Tax Savings (22%)', expression: 'standard_deduction * 0.22', variables: ['standard_deduction'] },
   ],
 
   results: [
-    { id: 'r_miles', label: 'Total Miles', formulaId: 'standard_deduction', type: 'number' },
-    { id: 'r_standard', label: 'Standard Deduction', formulaId: 'standard_deduction', type: 'currency', highlight: true, description: 'IRS standard rate 2026' },
+    { id: 'r_miles', label: 'Total Miles', formulaId: 'total_miles', type: 'number' },
+    { id: 'r_standard', label: 'Standard Deduction', formulaId: 'standard_deduction', type: 'currency', highlight: true, description: 'IRS standard rate for the tax year' },
     { id: 'r_savings', label: 'Est. Tax Savings', formulaId: 'tax_savings', type: 'currency' },
     { id: 'r_actual', label: 'Actual Cost Method', formulaId: 'actual_deduction', type: 'currency' },
   ],
