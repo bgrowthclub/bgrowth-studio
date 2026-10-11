@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 import { checkForDuplicateGrant, deriveGrantStatus } from './_lib/accessGrants.js';
 import { requireAdmin } from './_lib/requireAdmin.js';
+import { handleLibrary } from './_lib/fileLibrary.js';
 
 /**
  * Diagnostic-only: logs which stage failed, server-side, without ever
@@ -295,15 +296,15 @@ async function handleGrants(req, res, supabase, admin) {
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
   const admin = await requireAdmin(req);
   if (!admin) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const resource = req.query.resource;
-  if (resource !== 'members' && resource !== 'grants') {
-    return res.status(400).json({ error: 'resource must be "members" or "grants".' });
+  if (resource !== 'members' && resource !== 'grants' && resource !== 'library') {
+    return res.status(400).json({ error: 'resource must be "members", "grants" or "library".' });
   }
 
   logSupabaseHostname();
@@ -318,6 +319,7 @@ export default async function handler(req, res) {
 
   try {
     if (resource === 'members') return await handleMembers(req, res, supabase);
+    if (resource === 'library') return await handleLibrary(req, res, supabase, admin);
     return await handleGrants(req, res, supabase, admin);
   } catch (err) {
     logDiagnostic(`${resource}:unhandled`, err);

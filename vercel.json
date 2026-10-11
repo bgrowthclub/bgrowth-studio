@@ -29,5 +29,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/access-management.js": {
+      "maxDuration": 60
+    }
+  }
 }
