@@ -103,8 +103,8 @@ export async function publishToPortal(input: PublishToPortalInput): Promise<Publ
 
 /**
  * Publishes a Calculator Engine calculator (content_type "calculator") —
- * sold on the BGrowth Website only (decided 10/10/2026); the Portal leaves
- * calculators out. Same pipeline and pricing/trial fields as a Workspace.
+ * sold and run on the BGrowth Website and the Portal, like a Workspace.
+ * Same pipeline and pricing/trial fields as a Workspace.
  */
 export interface PublishCalculatorInput extends Omit<PublishToPortalInput, 'config'> {
   config: CalculatorConfig;
