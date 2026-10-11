@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound, Camera } from 'lucide-react';
+import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound, Camera, FolderOpen } from 'lucide-react';
 import type { StudioTool } from './types';
 
 const TOOLS: StudioTool[] = [
@@ -76,6 +76,14 @@ const TOOLS: StudioTool[] = [
     status: 'live',
   },
   {
+    id: 'file-library',
+    name: 'Files',
+    description: 'Your file library — PDFs and images stored once and reused in kits, single PDFs, bundles and apps.',
+    icon: 'file-library',
+    color: '#0D9488',
+    status: 'live',
+  },
+  {
     id: 'social-post-creator',
     name: 'Social Post Creator',
     description: 'Turn your own photos into a complete social media publication — carousel sequence, copy, and hashtags.',
@@ -97,6 +105,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'content-engine': <Megaphone className="h-7 w-7" />,
   'access-management': <KeyRound className="h-7 w-7" />,
   'social-post-creator': <Camera className="h-7 w-7" />,
+  'file-library': <FolderOpen className="h-7 w-7" />,
 };
 
 interface StudioHomeProps {

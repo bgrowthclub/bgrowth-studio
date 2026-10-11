@@ -13,6 +13,7 @@ import { ContentEngine } from './modules/content-engine/ContentEngine';
 import { RequireAdmin } from './auth/RequireAdmin';
 import { AccessManagement } from './modules/access-management/AccessManagement';
 import { SocialPostCreator } from './modules/social-post-creator/SocialPostCreator';
+import { FileLibrary } from './modules/file-library/FileLibrary';
 import { ProductHeader } from './components/ProductHeader';
 import { Sidebar } from './components/Sidebar';
 import { WorkflowAccordion } from './engine/components/WorkflowAccordion';
@@ -30,7 +31,7 @@ import { api_getTemplate } from './modules/checklist-builder/api';
 import { decompressString } from './lib/compress';
 import type { ChecklistConfig, ChecklistData } from './engine/types';
 
-type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine' | 'access-management' | 'social-post-creator';
+type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine' | 'access-management' | 'social-post-creator' | 'file-library';
 
 const TOOL_NAMES: Record<string, string> = {
   checklist: 'Checklist Builder',
@@ -42,6 +43,7 @@ const TOOL_NAMES: Record<string, string> = {
   'content-engine': 'Content Engine',
   'access-management': 'Access Management',
   'social-post-creator': 'Social Post Creator',
+  'file-library': 'Files',
 };
 
 // -----------------------------------------------------------------------
@@ -261,7 +263,7 @@ function StudioApp({ ownerEmail }: { ownerEmail: string }) {
   const [activeTool, setActiveTool] = useState<ActiveTool>(() => {
     if (window.location.pathname === '/studio/knowledge') return 'knowledge-engine';
     const tool = params.get('tool');
-    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine' || tool === 'access-management' || tool === 'social-post-creator') return tool as ActiveTool;
+    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine' || tool === 'access-management' || tool === 'social-post-creator' || tool === 'file-library') return tool as ActiveTool;
     return null;
   });
 
@@ -320,6 +322,10 @@ function StudioApp({ ownerEmail }: { ownerEmail: string }) {
 
   if (activeTool === 'access-management') return (
     <AccessManagement onHome={() => setActiveTool(null)} />
+  );
+
+  if (activeTool === 'file-library') return (
+    <FileLibrary onHome={() => setActiveTool(null)} />
   );
 
   if (activeTool === 'social-post-creator') return (
