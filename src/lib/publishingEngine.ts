@@ -5,6 +5,7 @@
  */
 import type { ChecklistConfig } from '../engine/types';
 import type { StudioTrialUnit } from '../modules/checklist-builder/builderTypes';
+import type { CalculatorConfig } from '../modules/calculator-engine/types';
 
 import { apiFetch } from './apiClient';
 export type PublicationStatus = 'draft' | 'ready_for_review' | 'approved' | 'published' | 'archived';
@@ -94,6 +95,50 @@ export async function publishToPortal(input: PublishToPortalInput): Promise<Publ
     if (!response.ok) {
       return { ok: false, error: json.error ?? `Publish failed (${response.status})`, issues: json.issues };
     }
+    return json;
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Publishes a Calculator Engine calculator (content_type "calculator") —
+ * sold and run on the BGrowth Website and the Portal, like a Workspace.
+ * Same pipeline and pricing/trial fields as a Workspace.
+ */
+export interface PublishCalculatorInput extends Omit<PublishToPortalInput, 'config'> {
+  config: CalculatorConfig;
+}
+
+export async function publishCalculatorToPortal(input: PublishCalculatorInput): Promise<PublishToPortalResult> {
+  try {
+    const response = await apiFetch('/api/publishing-engine?action=publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studioProductId: input.studioProductId,
+        slug: input.slug,
+        name: input.config.name,
+        shortDescription: input.shortDescription,
+        contentType: 'calculator',
+        categorySlug: input.categorySlug ? slugify(input.categorySlug) : undefined,
+        content: input.config,
+        status: input.status,
+        destinationKey: 'portal',
+        publishedBy: input.publishedBy,
+        changeNotes: input.changeNotes,
+        coverImage: input.coverImage,
+        isTrialEligible: input.isTrialEligible,
+        trialDuration: input.trialDuration,
+        trialUnit: input.trialUnit,
+        isFree: input.isFree,
+        priceCents: input.priceCents,
+        currency: input.currency,
+        stripePriceId: input.stripePriceId,
+      }),
+    });
+    const json = (await response.json()) as PublishToPortalResult;
+    if (!response.ok) return { ok: false, error: json.error ?? `Publish failed (${response.status})`, issues: json.issues };
     return json;
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
