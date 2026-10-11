@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Save, Printer, Download, History, Plus, StickyNote, Calculator, TrendingUp, DollarSign, Clock, BarChart2, Star, Trash2, ChevronRight } from 'lucide-react';
+import { Save, Printer, Download, History, Plus, StickyNote, Calculator, TrendingUp, DollarSign, Clock, BarChart2, Star, Trash2, ChevronRight, UploadCloud } from 'lucide-react';
 import { CalcField } from './components/CalcField';
 import { ResultsPanel } from './components/ResultsPanel';
 import { DonutChart } from './components/DonutChart';
 import { gasGetCalculators, gasSaveCalculators } from '../../lib/studioSync';
 import { CalculatorBuilder } from './builder/CalculatorBuilder';
 import { CalcProgressBar } from './components/CalcProgressBar';
+import { PublishCalculatorDialog } from './components/PublishCalculatorDialog';
 import { computeAll, calcCompletion, buildDefaultValues, formatResult } from './formulaEngine';
 import { applyBrandTheme } from '../../engine/theme';
 import { Toast } from '../../components/Toast';
@@ -341,11 +342,12 @@ interface CalculatorEngineProps {
   initialCalcId?: string;
 }
 
-export function CalculatorEngine({ ownerEmail: _, initialCalcId }: CalculatorEngineProps) {
+export function CalculatorEngine({ ownerEmail, initialCalcId }: CalculatorEngineProps) {
   const [activeCalc, setActiveCalc] = useState<CalculatorConfig | null>(
     () => initialCalcId ? CALCULATORS.find(c => c.productId === initialCalcId) ?? null : null
   );
   const [showBuilder, setShowBuilder] = useState(false);
+  const [publishing, setPublishing] = useState<CalculatorConfig | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [importJson, setImportJson] = useState('');
@@ -405,6 +407,7 @@ export function CalculatorEngine({ ownerEmail: _, initialCalcId }: CalculatorEng
 
   return (
     <div className="flex h-full overflow-hidden">
+      {publishing && <PublishCalculatorDialog config={publishing} ownerEmail={ownerEmail} onClose={() => setPublishing(null)} />}
       {/* Import Modal */}
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -514,6 +517,14 @@ export function CalculatorEngine({ ownerEmail: _, initialCalcId }: CalculatorEng
                     className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-600"
                   >
                     Open <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPublishing(calc)}
+                    title="Publish to bgrowth.app"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-100 text-navy-400 hover:border-brand hover:text-brand"
+                  >
+                    <UploadCloud className="h-3.5 w-3.5" />
                   </button>
                   <button
                     type="button"
