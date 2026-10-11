@@ -25,6 +25,8 @@ import type { SectionType, ChecklistConfig } from '../../engine/types';
 import { cn, compressImage, newKey } from '../../lib/utils';
 import { publishToPortal, archiveProduct, slugifyProductName } from '../../lib/publishingEngine';
 import { useWorkspaceCategories, matchCategorySlug, fetchPublishedCategorySlug, CATEGORY_ADMIN_URL } from '../../lib/workspaceCategories';
+import { fetchPublishedTags } from '../../lib/workspaceTags';
+import TagPicker from '../../components/TagPicker';
 import { scanTemplateIntegrity, repairTemplateIntegrity, type TemplateIntegrityReport, type IdRepair } from './templateIntegrity';
 
 /** A cover image the user just picked, staged for the next publish — not yet uploaded. */
@@ -69,6 +71,9 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   const [showPreview, setShowPreview] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  // Tags from the shared list (Portal migration 0048). null = not loaded
+  // yet: publishing then leaves the product's tags as they are.
+  const [tags, setTags] = useState<string[] | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
@@ -99,6 +104,25 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryStatus, draft.templateId]);
+
+  // Start from the tags the published Workspace already has (maybe set in
+  // the Website's Admin); a never-published one starts empty.
+  useEffect(() => {
+    if (!draft.templateId) {
+      setTags([]);
+      return;
+    }
+    let cancelled = false;
+    fetchPublishedTags(draft.templateId)
+      .then((names) => {
+        if (!cancelled) setTags(names ?? (draft.publishStatus === 'published' ? null : []));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.templateId]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -262,6 +286,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         slug: slugifyProductName(draft.name),
         shortDescription: draft.shortDescription,
         categorySlug,
+        tags: tags ?? undefined,
         status: 'published',
         publishedBy: ownerEmail,
         coverImage: pendingCoverImage ?? undefined,
@@ -559,6 +584,14 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
                       Manage categories
                     </a>
                   </p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">Tags</label>
+                  {tags === null ? (
+                    <p className="text-xs text-navy-300">Loading tags…</p>
+                  ) : (
+                    <TagPicker value={tags} onChange={setTags} manageUrl="https://bgrowth.app/platform/admin/tags" />
+                  )}
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">
