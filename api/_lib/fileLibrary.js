@@ -278,9 +278,9 @@ async function listDownloads(res, supabase) {
   const { data, error } = await supabase
     .schema('portal')
     .from('products')
-    .select('id, studio_product_id, name, slug, short_description, status, content, is_free, price_cents, cover_image_url, category_id, last_published_at, updated_at')
+    .select('id, studio_product_id, name, slug, short_description, status, content, is_free, price_cents, cover_image_url, category_id, last_published_at, created_at')
     .eq('content_type', 'pdf')
-    .order('updated_at', { ascending: false });
+    .order('created_at', { ascending: false });
   if (error) throw error;
   const rows = data ?? [];
   const ids = rows.map((r) => r.id);
