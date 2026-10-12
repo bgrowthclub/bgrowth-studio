@@ -272,13 +272,38 @@ async function galleryUploadUrl(res, supabase, body) {
   return res.json({ bucket: GALLERY_BUCKET, path, token: data.token, url: pub.publicUrl });
 }
 
+// "Import from Wix" (Studio → Downloads): copies a product image from the
+// Wix CDN into our public bucket so the product page doesn't depend on Wix.
+const IMAGE_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+async function galleryFromUrl(res, supabase, body) {
+  const url = checkUrl(body.url);
+  if (!url || url.hostname !== 'static.wixstatic.com') return res.status(400).json({ error: 'Only Wix images can be copied.' });
+  let response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  } catch {
+    return res.status(502).json({ error: 'Could not reach the image.' });
+  }
+  if (!response.ok) return res.status(502).json({ error: `The image answered ${response.status}.` });
+  const type = String(response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  const ext = IMAGE_EXT[type];
+  if (!ext) return res.status(400).json({ error: 'That link is not an image.' });
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (!buffer.byteLength || buffer.byteLength > 10 * 1024 * 1024) return res.status(400).json({ error: 'Images must be up to 10 MB.' });
+  const path = `gallery/${randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(GALLERY_BUCKET).upload(path, buffer, { contentType: type, upsert: false });
+  if (error) throw error;
+  const { data: pub } = supabase.storage.from(GALLERY_BUCKET).getPublicUrl(path);
+  return res.json({ url: pub.publicUrl });
+}
+
 // Studio → Downloads: every Download product (content_type 'pdf'), drafts
 // included (the browser can only read published ones), with its tags.
 async function listDownloads(res, supabase) {
   const { data, error } = await supabase
     .schema('portal')
     .from('products')
-    .select('id, studio_product_id, name, slug, short_description, status, content, is_free, price_cents, cover_image_url, category_id, last_published_at, created_at')
+    .select('id, studio_product_id, name, slug, short_description, status, content, metadata, is_free, price_cents, cover_image_url, category_id, last_published_at, created_at')
     .eq('content_type', 'pdf')
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -321,6 +346,7 @@ export async function handleLibrary(req, res, supabase, admin) {
     if (body.action === 'confirm') return confirmUpload(res, supabase, body, admin);
     if (body.action === 'from-url') return fromUrl(res, supabase, body, admin);
     if (body.action === 'gallery-upload-url') return galleryUploadUrl(res, supabase, body);
+    if (body.action === 'gallery-from-url') return galleryFromUrl(res, supabase, body);
     return res.status(400).json({ error: 'Unknown action.' });
   }
   if (req.method === 'PATCH') return updateFile(res, supabase, body);
