@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { getCaptchaToken } from '../lib/captcha';
 
 /**
  * The only entry point into Studio-mode. No sign-up link, no "forgot
@@ -19,7 +20,8 @@ export function AdminLoginPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const captchaToken = await getCaptchaToken('login');
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
       if (signInError) throw signInError;
       // No further action needed — onAuthStateChange (AuthContext) picks up
       // the new session, and RequireAdmin re-evaluates automatically.
