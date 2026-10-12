@@ -95,7 +95,7 @@ export function DownloadEditor({ initial, ownerEmail, onBack, onSaved }: Props) 
     setNotice(null);
     if (!draft.name.trim()) return setError('Give the product a name.');
     if (!draft.shortDescription.trim()) return setError('Write a short description.');
-    if (!draft.files.length) return setError('Add at least one file.');
+    if (status === 'published' && !draft.files.length) return setError('Add at least one file before publishing.');
     if (!draft.isFree && !(Number(draft.price) > 0)) return setError('Set a price, or mark it as free.');
     setBusy(status);
     try {

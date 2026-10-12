@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Download, FileText, Package, Plus } from 'lucide-react';
-import { PrimaryButton } from '../../components/ui/Button';
+import { AlertTriangle, ArrowLeft, Download, FileText, Package, Plus, Store } from 'lucide-react';
+import { Button, PrimaryButton } from '../../components/ui/Button';
 import { EMPTY_GALLERY } from '../../lib/productGallery';
 import { listDownloads } from './api';
 import { DownloadEditor } from './DownloadEditor';
 import type { DownloadDraft, DownloadProduct } from './types';
+import { importWixProducts, WIX_PRODUCT_COUNT, type WixImportProgress } from './wixImport';
 
 interface Props {
   ownerEmail: string;
@@ -28,6 +29,7 @@ function toDraft(p: DownloadProduct | null): DownloadDraft {
       ? { images: Array.isArray(p.gallery.images) ? p.gallery.images : [], video: p.gallery.video ?? null }
       : EMPTY_GALLERY,
     status: p?.status ?? null,
+    wix: p?.metadata?.wix,
   };
 }
 
@@ -40,6 +42,8 @@ export function Downloads({ ownerEmail, onHome }: Props) {
   const [items, setItems] = useState<DownloadProduct[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<DownloadDraft | null>(null);
+  const [importing, setImporting] = useState<WixImportProgress | null>(null);
+  const [importDone, setImportDone] = useState<WixImportProgress | null>(null);
 
   const load = useCallback(() => {
     listDownloads()
@@ -47,6 +51,25 @@ export function Downloads({ ownerEmail, onHome }: Props) {
       .catch((err) => setError(err instanceof Error ? err.message : 'Could not load downloads.'));
   }, []);
   useEffect(load, [load]);
+
+  const imported = items?.filter((d) => d.metadata?.wix).length ?? 0;
+  const left = WIX_PRODUCT_COUNT - imported;
+
+  async function runWixImport() {
+    if (!items) return;
+    if (!window.confirm(`Create ${left} drafts from the Wix store? Nothing is published.`)) return;
+    setImportDone(null);
+    setImporting({ done: 0, total: left, current: '', failed: [] });
+    try {
+      const result = await importWixProducts(items, ownerEmail, setImporting);
+      setImportDone(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The import stopped.');
+    } finally {
+      setImporting(null);
+      load();
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f6fb] font-sans">
@@ -69,10 +92,38 @@ export function Downloads({ ownerEmail, onHome }: Props) {
         <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-xl text-sm text-navy-500">Single PDFs and kits made from your files, sold on bgrowth.app. Buyers download them from their member area.</p>
-            <PrimaryButton type="button" size="sm" onClick={() => setEditing(toDraft(null))}>
-              <Plus className="h-4 w-4" /> New download
-            </PrimaryButton>
+            <div className="flex flex-wrap gap-2">
+              {items && left > 0 && (
+                <Button type="button" size="sm" disabled={importing !== null} onClick={() => void runWixImport()}>
+                  <Store className="h-4 w-4" /> Import from Wix ({left})
+                </Button>
+              )}
+              <PrimaryButton type="button" size="sm" onClick={() => setEditing(toDraft(null))}>
+                <Plus className="h-4 w-4" /> New download
+              </PrimaryButton>
+            </div>
           </div>
+          {importing && (
+            <div className="mb-4 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-navy-700">
+              Importing {importing.done + 1 > importing.total ? importing.total : importing.done + 1} of {importing.total}
+              {importing.current && <span className="text-navy-500"> · {importing.current}</span>}
+              <p className="text-xs text-navy-400">Keep this page open until it finishes.</p>
+            </div>
+          )}
+          {importDone && (
+            <div className="mb-4 rounded-xl border border-navy-100 bg-white px-4 py-3 text-sm text-navy-700">
+              {importDone.total - importDone.failed.length} drafts created from Wix.
+              {importDone.failed.length > 0 && (
+                <ul className="mt-1 text-xs text-red-500">
+                  {importDone.failed.map((f) => (
+                    <li key={f.name}>
+                      {f.name}: {f.error}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
           <div className="overflow-hidden rounded-xl border border-navy-100 bg-white">
             {items === null && !error && <p className="p-6 text-sm text-navy-400">Loading…</p>}
@@ -81,6 +132,7 @@ export function Downloads({ ownerEmail, onHome }: Props) {
               const files = p.content?.files.length ?? 0;
               const kit = files > 1 || (p.content?.links.length ?? 0) > 0;
               const Icon = kit ? Package : FileText;
+              const missing = files === 0 && (p.content?.links.length ?? 0) === 0;
               return (
                 <button
                   key={p.id}
@@ -93,7 +145,14 @@ export function Downloads({ ownerEmail, onHome }: Props) {
                     <p className="truncate text-sm font-semibold text-navy-900">{p.name}</p>
                     <p className="text-xs text-navy-400">
                       {kit ? 'Kit™' : 'PDF™'} · {files} {files === 1 ? 'file' : 'files'} · {p.is_free ? 'Free' : `$${((p.price_cents ?? 0) / 100).toFixed(2)}`}
+                      {p.metadata?.wix && ' · from Wix'}
                     </p>
+                    {missing && (
+                      <p className="flex items-center gap-1 text-xs font-medium text-amber-600">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        <span className="truncate">Missing file{p.metadata?.wix?.file ? ` — on Wix: ${p.metadata.wix.file}` : ''}</span>
+                      </p>
+                    )}
                   </div>
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${

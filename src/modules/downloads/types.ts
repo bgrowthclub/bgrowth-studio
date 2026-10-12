@@ -21,6 +21,12 @@ export interface DownloadContent {
   instructions: string;
 }
 
+/** Where an imported product came from (products.metadata.wix). */
+export interface WixSource {
+  id: string;
+  file: string | null;
+}
+
 /** A Download product as Studio → Downloads lists it (drafts included). */
 export interface DownloadProduct {
   id: string;
@@ -30,6 +36,7 @@ export interface DownloadProduct {
   short_description: string | null;
   status: string;
   content: DownloadContent | null;
+  metadata: { wix?: WixSource } | null;
   is_free: boolean;
   price_cents: number | null;
   cover_image_url: string | null;
@@ -55,4 +62,6 @@ export interface DownloadDraft {
   instructions: string;
   gallery: ProductGallery;
   status: string | null;
+  /** Set on products imported from the Wix store — kept when re-saved. */
+  wix?: WixSource;
 }

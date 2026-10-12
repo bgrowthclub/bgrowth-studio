@@ -44,7 +44,7 @@ export async function saveDownload(draft: DownloadDraft, status: 'draft' | 'publ
       tags: draft.tags,
       gallery: draft.gallery,
       content,
-      metadata: { included, downloadKind: kit ? 'kit' : 'pdf' },
+      metadata: { included, downloadKind: kit ? 'kit' : 'pdf', ...(draft.wix ? { wix: draft.wix } : {}) },
       status,
       destinationKey: 'portal',
       publishedBy,
@@ -59,4 +59,16 @@ export async function saveDownload(draft: DownloadDraft, status: 'draft' | 'publ
     }),
   });
   return parse<{ ok: boolean; product?: { id: string; slug: string; status: string } }>(response);
+}
+
+/** Copies a Wix CDN image into our public bucket; returns its new URL. */
+export async function copyWixImage(url: string): Promise<string> {
+  const { url: copied } = await parse<{ url: string }>(
+    await apiFetch('/api/access-management?resource=library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'gallery-from-url', url }),
+    }),
+  );
+  return copied;
 }
