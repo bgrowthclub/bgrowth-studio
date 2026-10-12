@@ -37,7 +37,7 @@ export interface DownloadProduct {
   tags: string[];
   gallery: ProductGallery | null;
   last_published_at: string | null;
-  updated_at: string;
+  created_at: string;
 }
 
 /** What the editor works on — a new Download or an existing one. */
