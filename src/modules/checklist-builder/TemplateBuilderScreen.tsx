@@ -27,6 +27,9 @@ import { publishToPortal, archiveProduct, slugifyProductName } from '../../lib/p
 import { useWorkspaceCategories, matchCategorySlug, fetchPublishedCategorySlug, CATEGORY_ADMIN_URL } from '../../lib/workspaceCategories';
 import { fetchPublishedTags } from '../../lib/workspaceTags';
 import TagPicker from '../../components/TagPicker';
+import GalleryEditor from '../../components/GalleryEditor';
+import { EMPTY_GALLERY, fetchPublishedGallery } from '../../lib/productGallery';
+import type { ProductGallery } from '../../lib/productGallery';
 import { scanTemplateIntegrity, repairTemplateIntegrity, type TemplateIntegrityReport, type IdRepair } from './templateIntegrity';
 
 /** A cover image the user just picked, staged for the next publish — not yet uploaded. */
@@ -74,6 +77,8 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   // Tags from the shared list (Portal migration 0048). null = not loaded
   // yet: publishing then leaves the product's tags as they are.
   const [tags, setTags] = useState<string[] | null>(null);
+  // Product page gallery (Portal migration 0050); null = not loaded yet.
+  const [gallery, setGallery] = useState<ProductGallery | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
@@ -104,6 +109,24 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryStatus, draft.templateId]);
+
+  // Start from the gallery the published Workspace already has.
+  useEffect(() => {
+    if (!draft.templateId) {
+      setGallery(EMPTY_GALLERY);
+      return;
+    }
+    let cancelled = false;
+    fetchPublishedGallery(draft.templateId)
+      .then((g) => {
+        if (!cancelled) setGallery(g ?? (draft.publishStatus === 'published' ? null : EMPTY_GALLERY));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.templateId]);
 
   // Start from the tags the published Workspace already has (maybe set in
   // the Website's Admin); a never-published one starts empty.
@@ -287,6 +310,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         shortDescription: draft.shortDescription,
         categorySlug,
         tags: tags ?? undefined,
+        gallery: gallery ?? undefined,
         status: 'published',
         publishedBy: ownerEmail,
         coverImage: pendingCoverImage ?? undefined,
@@ -591,6 +615,16 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
                     <p className="text-xs text-navy-300">Loading tags…</p>
                   ) : (
                     <TagPicker value={tags} onChange={setTags} manageUrl="https://bgrowth.app/platform/admin/tags" />
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">
+                    Gallery <span className="normal-case font-normal text-navy-300">(up to 6 images and a short video, shown on the product page)</span>
+                  </label>
+                  {gallery === null ? (
+                    <p className="text-xs text-navy-300">Loading gallery…</p>
+                  ) : (
+                    <GalleryEditor value={gallery} onChange={setGallery} />
                   )}
                 </div>
                 <div>

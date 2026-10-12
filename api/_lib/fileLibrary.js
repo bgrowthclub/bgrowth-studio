@@ -244,6 +244,34 @@ async function deleteFile(res, supabase, body) {
   return res.json({ ok: true });
 }
 
+// Product page gallery (Portal migration 0050): images and short videos go
+// to the PUBLIC portal-product-assets bucket (gallery/…) — they are shown
+// to every visitor. The browser uploads straight to Storage with this
+// one-time token; the publish then sends the public URLs.
+const GALLERY_BUCKET = 'portal-product-assets';
+const GALLERY_TYPES = {
+  'image/png': ['png', 10],
+  'image/jpeg': ['jpg', 10],
+  'image/webp': ['webp', 10],
+  'image/gif': ['gif', 10],
+  'video/mp4': ['mp4', 50],
+  'video/webm': ['webm', 50],
+  'video/quicktime': ['mov', 50],
+};
+
+async function galleryUploadUrl(res, supabase, body) {
+  const type = GALLERY_TYPES[String(body.mimeType ?? '').toLowerCase()];
+  if (!type) return res.status(400).json({ error: 'Use a PNG, JPG, WebP or GIF image, or an MP4, WebM or MOV video.' });
+  const [ext, maxMb] = type;
+  const size = Number(body.size ?? 0);
+  if (!(size > 0) || size > maxMb * 1024 * 1024) return res.status(400).json({ error: `This file must be up to ${maxMb} MB.` });
+  const path = `gallery/${randomUUID()}.${ext}`;
+  const { data, error } = await supabase.storage.from(GALLERY_BUCKET).createSignedUploadUrl(path);
+  if (error) throw error;
+  const { data: pub } = supabase.storage.from(GALLERY_BUCKET).getPublicUrl(path);
+  return res.json({ bucket: GALLERY_BUCKET, path, token: data.token, url: pub.publicUrl });
+}
+
 export async function handleLibrary(req, res, supabase, admin) {
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {};
   if (req.method === 'GET') {
@@ -254,6 +282,7 @@ export async function handleLibrary(req, res, supabase, admin) {
     if (body.action === 'upload-url') return uploadUrl(res, supabase, body);
     if (body.action === 'confirm') return confirmUpload(res, supabase, body, admin);
     if (body.action === 'from-url') return fromUrl(res, supabase, body, admin);
+    if (body.action === 'gallery-upload-url') return galleryUploadUrl(res, supabase, body);
     return res.status(400).json({ error: 'Unknown action.' });
   }
   if (req.method === 'PATCH') return updateFile(res, supabase, body);
