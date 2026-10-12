@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound, Camera, FolderOpen } from 'lucide-react';
+import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound, Camera, FolderOpen, Download } from 'lucide-react';
 import type { StudioTool } from './types';
 
 const TOOLS: StudioTool[] = [
@@ -84,6 +84,14 @@ const TOOLS: StudioTool[] = [
     status: 'live',
   },
   {
+    id: 'downloads',
+    name: 'Downloads',
+    description: 'Single PDFs and kits (files, Canva links, instructions) made from your files and sold on bgrowth.app.',
+    icon: 'downloads',
+    color: '#0369A1',
+    status: 'live',
+  },
+  {
     id: 'social-post-creator',
     name: 'Social Post Creator',
     description: 'Turn your own photos into a complete social media publication — carousel sequence, copy, and hashtags.',
@@ -106,6 +114,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'access-management': <KeyRound className="h-7 w-7" />,
   'social-post-creator': <Camera className="h-7 w-7" />,
   'file-library': <FolderOpen className="h-7 w-7" />,
+  downloads: <Download className="h-7 w-7" />,
 };
 
 interface StudioHomeProps {

@@ -272,10 +272,48 @@ async function galleryUploadUrl(res, supabase, body) {
   return res.json({ bucket: GALLERY_BUCKET, path, token: data.token, url: pub.publicUrl });
 }
 
+// Studio → Downloads: every Download product (content_type 'pdf'), drafts
+// included (the browser can only read published ones), with its tags.
+async function listDownloads(res, supabase) {
+  const { data, error } = await supabase
+    .schema('portal')
+    .from('products')
+    .select('id, studio_product_id, name, slug, short_description, status, content, is_free, price_cents, cover_image_url, category_id, last_published_at, updated_at')
+    .eq('content_type', 'pdf')
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  const rows = data ?? [];
+  const ids = rows.map((r) => r.id);
+  const [{ data: links }, { data: cats }, galleries] = await Promise.all([
+    ids.length ? supabase.schema('portal').from('product_tags').select('product_id, tags(name)').in('product_id', ids) : { data: [] },
+    supabase.schema('portal').from('workspace_categories').select('id, slug'),
+    ids.length ? supabase.schema('portal').from('products').select('id, gallery').in('id', ids) : { data: [] },
+  ]);
+  const tagsOf = new Map();
+  for (const l of links ?? []) {
+    const list = tagsOf.get(l.product_id) ?? [];
+    const t = Array.isArray(l.tags) ? l.tags : l.tags ? [l.tags] : [];
+    list.push(...t.map((x) => x.name));
+    tagsOf.set(l.product_id, list);
+  }
+  const slugOf = new Map((cats ?? []).map((c) => [c.id, c.slug]));
+  // The gallery column (migration 0050) may not exist yet — then no gallery.
+  const galleryOf = new Map(((galleries && !galleries.error && galleries.data) || []).map((g) => [g.id, g.gallery]));
+  return res.json({
+    downloads: rows.map((r) => ({
+      ...r,
+      category_slug: r.category_id ? slugOf.get(r.category_id) ?? null : null,
+      tags: tagsOf.get(r.id) ?? [],
+      gallery: galleryOf.get(r.id) ?? null,
+    })),
+  });
+}
+
 export async function handleLibrary(req, res, supabase, admin) {
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {};
   if (req.method === 'GET') {
     if (req.query.download) return downloadLink(res, supabase, String(req.query.download));
+    if (req.query.downloads) return listDownloads(res, supabase);
     return listFiles(res, supabase);
   }
   if (req.method === 'POST') {
