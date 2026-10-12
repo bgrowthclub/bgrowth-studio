@@ -6,6 +6,9 @@ import { archiveProduct, publishCalculatorToPortal, slugifyProductName } from '.
 import { useWorkspaceCategories, CATEGORY_ADMIN_URL } from '../../../lib/workspaceCategories';
 import { fetchPublishedTags } from '../../../lib/workspaceTags';
 import TagPicker from '../../../components/TagPicker';
+import GalleryEditor from '../../../components/GalleryEditor';
+import { EMPTY_GALLERY, fetchPublishedGallery } from '../../../lib/productGallery';
+import type { ProductGallery } from '../../../lib/productGallery';
 import type { CalculatorConfig } from '../types';
 
 interface Props {
@@ -50,6 +53,21 @@ export function PublishCalculatorDialog({ config, ownerEmail, onClose }: Props) 
       })
       .catch(() => {
         if (!cancelled) setTags([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [studioProductId]);
+  // Product page gallery (Portal migration 0050); null = still loading.
+  const [gallery, setGallery] = useState<ProductGallery | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedGallery(studioProductId)
+      .then((g) => {
+        if (!cancelled) setGallery(g ?? EMPTY_GALLERY);
+      })
+      .catch(() => {
+        if (!cancelled) setGallery(EMPTY_GALLERY);
       });
     return () => {
       cancelled = true;
@@ -123,6 +141,7 @@ export function PublishCalculatorDialog({ config, ownerEmail, onClose }: Props) 
         shortDescription: shortDescription.trim(),
         categorySlug: category || undefined,
         tags: tags ?? undefined,
+        gallery: gallery ?? undefined,
         status: 'published',
         publishedBy: ownerEmail || 'studio',
         coverImage: cover ? { base64: cover.base64, mimeType: 'image/jpeg', fileExtension: 'jpg' } : coverUrl ? { url: coverUrl } : undefined,
@@ -219,6 +238,10 @@ export function PublishCalculatorDialog({ config, ownerEmail, onClose }: Props) 
           <div>
             <span className={LABEL}>Tags</span>
             {tags === null ? <p className="text-xs text-navy-300">Loading tags…</p> : <TagPicker value={tags} onChange={setTags} manageUrl="https://bgrowth.app/platform/admin/tags" />}
+          </div>
+          <div>
+            <span className={LABEL}>Gallery (product page)</span>
+            {gallery === null ? <p className="text-xs text-navy-300">Loading gallery…</p> : <GalleryEditor value={gallery} onChange={setGallery} />}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
