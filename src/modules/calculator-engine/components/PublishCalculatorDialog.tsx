@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, ImagePlus, UploadCloud, X } from 'lucide-react';
+import { CalendarClock, ExternalLink, ImagePlus, UploadCloud, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabaseClient';
 import { compressImage } from '../../../lib/utils';
 import { archiveProduct, publishCalculatorToPortal, slugifyProductName } from '../../../lib/publishingEngine';
@@ -81,6 +81,7 @@ export function PublishCalculatorDialog({ config, ownerEmail, onClose }: Props) 
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [published, setPublished] = useState<Published | null>(null);
   const [busy, setBusy] = useState<'publish' | 'archive' | 'image' | null>(null);
+  const [scheduleDay, setScheduleDay] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Already published? Start from what the catalog has.
@@ -122,7 +123,9 @@ export function PublishCalculatorDialog({ config, ownerEmail, onClose }: Props) 
     }
   }
 
-  async function publish() {
+  // scheduleAt (ISO): save it as approved with a date instead — the daily
+  // job puts it on sale that day (Portal migration 0051).
+  async function publish(scheduleAt?: string) {
     setMessage(null);
     const cleanSlug = slugifyProductName(slug);
     if (!cleanSlug) return setMessage({ ok: false, text: 'Set the address (slug).' });
@@ -142,7 +145,8 @@ export function PublishCalculatorDialog({ config, ownerEmail, onClose }: Props) 
         categorySlug: category || undefined,
         tags: tags ?? undefined,
         gallery: gallery ?? undefined,
-        status: 'published',
+        status: scheduleAt ? 'approved' : 'published',
+        scheduledPublishAt: scheduleAt,
         publishedBy: ownerEmail || 'studio',
         coverImage: cover ? { base64: cover.base64, mimeType: 'image/jpeg', fileExtension: 'jpg' } : coverUrl ? { url: coverUrl } : undefined,
         isTrialEligible: trial,
@@ -160,7 +164,12 @@ export function PublishCalculatorDialog({ config, ownerEmail, onClose }: Props) 
       setPublished({ slug: result.product.slug, status: result.product.status, version: result.product.version });
       setCoverUrl(result.product.coverImageUrl ?? coverUrl);
       setCover(null);
-      setMessage({ ok: true, text: `Published on bgrowth.app ✓ (v${result.product.version})` });
+      setMessage({
+        ok: true,
+        text: scheduleAt
+          ? `Scheduled ✓ — goes on sale on ${new Date(scheduleAt).toLocaleDateString()}`
+          : `Published on bgrowth.app ✓ (v${result.product.version})`,
+      });
     } finally {
       setBusy(null);
     }
@@ -312,6 +321,26 @@ export function PublishCalculatorDialog({ config, ownerEmail, onClose }: Props) 
                 </button>
               )}
             </div>
+            {!live && (
+              <span className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={scheduleDay}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setScheduleDay(e.target.value)}
+                  className="rounded-lg border border-navy-100 px-2 py-1.5 text-xs text-navy-700"
+                  title="Pick a day to put it on sale automatically"
+                />
+                <button
+                  type="button"
+                  onClick={() => void publish(new Date(`${scheduleDay}T08:00:00`).toISOString())}
+                  disabled={busy !== null || !scheduleDay}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-navy-100 px-3 py-2 text-sm font-semibold text-navy-700 hover:bg-navy-50 disabled:opacity-50"
+                >
+                  <CalendarClock className="h-4 w-4" /> Schedule
+                </button>
+              </span>
+            )}
             <button
               type="button"
               onClick={() => void publish()}

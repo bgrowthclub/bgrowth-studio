@@ -72,3 +72,17 @@ export async function copyWixImage(url: string): Promise<string> {
   );
   return copied;
 }
+
+/** Release flow (Portal migration 0051): move a saved product between stages. */
+export async function releaseAction(
+  productId: string,
+  body: { action: 'stage'; stage: 'draft' | 'ready_for_review' | 'approved' } | { action: 'schedule'; at: string | null } | { action: 'publish-now' },
+) {
+  return parse<{ ok: boolean; status?: string; scheduledPublishAt?: string | null }>(
+    await apiFetch('/api/access-management?resource=release', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId, ...body }),
+    }),
+  );
+}

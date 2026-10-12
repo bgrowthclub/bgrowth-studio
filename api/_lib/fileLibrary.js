@@ -309,10 +309,14 @@ async function listDownloads(res, supabase) {
   if (error) throw error;
   const rows = data ?? [];
   const ids = rows.map((r) => r.id);
-  const [{ data: links }, { data: cats }, galleries] = await Promise.all([
+  const [{ data: links }, { data: cats }, galleries, release] = await Promise.all([
     ids.length ? supabase.schema('portal').from('product_tags').select('product_id, tags(name)').in('product_id', ids) : { data: [] },
     supabase.schema('portal').from('workspace_categories').select('id, slug'),
     ids.length ? supabase.schema('portal').from('products').select('id, gallery').in('id', ids) : { data: [] },
+    // Release flow columns (migration 0051) — empty until it runs.
+    ids.length
+      ? supabase.schema('portal').from('products').select('id, scheduled_publish_at, reviewed_by, approved_by').in('id', ids)
+      : { data: [] },
   ]);
   const tagsOf = new Map();
   for (const l of links ?? []) {
@@ -323,6 +327,7 @@ async function listDownloads(res, supabase) {
   }
   const slugOf = new Map((cats ?? []).map((c) => [c.id, c.slug]));
   // The gallery column (migration 0050) may not exist yet — then no gallery.
+  const releaseOf = new Map(((release && !release.error && release.data) || []).map(({ id, ...rest }) => [id, rest]));
   const galleryOf = new Map(((galleries && !galleries.error && galleries.data) || []).map((g) => [g.id, g.gallery]));
   return res.json({
     downloads: rows.map((r) => ({
@@ -330,6 +335,7 @@ async function listDownloads(res, supabase) {
       category_slug: r.category_id ? slugOf.get(r.category_id) ?? null : null,
       tags: tagsOf.get(r.id) ?? [],
       gallery: galleryOf.get(r.id) ?? null,
+      ...(releaseOf.get(r.id) ?? {}),
     })),
   });
 }

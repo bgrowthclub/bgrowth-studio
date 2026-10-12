@@ -45,6 +45,10 @@ export interface DownloadProduct {
   gallery: ProductGallery | null;
   last_published_at: string | null;
   created_at: string;
+  /** Release flow (Portal migration 0051). */
+  scheduled_publish_at?: string | null;
+  reviewed_by?: string | null;
+  approved_by?: string | null;
 }
 
 /** What the editor works on — a new Download or an existing one. */
@@ -64,4 +68,9 @@ export interface DownloadDraft {
   status: string | null;
   /** Set on products imported from the Wix store — kept when re-saved. */
   wix?: WixSource;
+  /** The saved product (portal.products.id) — null until first saved. */
+  productId?: string | null;
+  scheduledPublishAt?: string | null;
+  reviewedBy?: string | null;
+  approvedBy?: string | null;
 }

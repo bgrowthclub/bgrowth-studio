@@ -5,6 +5,7 @@ import { EMPTY_GALLERY } from '../../lib/productGallery';
 import { listDownloads } from './api';
 import { DownloadEditor } from './DownloadEditor';
 import type { DownloadDraft, DownloadProduct } from './types';
+import { releaseLabel } from './ReleasePanel';
 import { importWixProducts, WIX_PRODUCT_COUNT, type WixImportProgress } from './wixImport';
 
 interface Props {
@@ -30,6 +31,10 @@ function toDraft(p: DownloadProduct | null): DownloadDraft {
       : EMPTY_GALLERY,
     status: p?.status ?? null,
     wix: p?.metadata?.wix,
+    productId: p?.id ?? null,
+    scheduledPublishAt: p?.scheduled_publish_at ?? null,
+    reviewedBy: p?.reviewed_by ?? null,
+    approvedBy: p?.approved_by ?? null,
   };
 }
 
@@ -44,6 +49,7 @@ export function Downloads({ ownerEmail, onHome }: Props) {
   const [editing, setEditing] = useState<DownloadDraft | null>(null);
   const [importing, setImporting] = useState<WixImportProgress | null>(null);
   const [importDone, setImportDone] = useState<WixImportProgress | null>(null);
+  const [stage, setStage] = useState<string>('all');
 
   const load = useCallback(() => {
     listDownloads()
@@ -52,6 +58,14 @@ export function Downloads({ ownerEmail, onHome }: Props) {
   }, []);
   useEffect(load, [load]);
 
+  const STAGE_FILTERS: [string, string][] = [
+    ['all', 'All'],
+    ['draft', 'Draft'],
+    ['ready_for_review', 'Waiting for approval'],
+    ['approved', 'Approved / scheduled'],
+    ['published', 'Published'],
+  ];
+  const visible = items?.filter((d) => stage === 'all' || d.status === stage || (stage === 'draft' && d.status === 'archived'));
   const imported = items?.filter((d) => d.metadata?.wix).length ?? 0;
   const left = WIX_PRODUCT_COUNT - imported;
 
@@ -125,10 +139,29 @@ export function Downloads({ ownerEmail, onHome }: Props) {
             </div>
           )}
           {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
+          {items && items.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {STAGE_FILTERS.map(([key, label]) => {
+                const count = key === 'all' ? items.length : items.filter((d) => d.status === key).length;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setStage(key)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      stage === key ? 'bg-navy-900 text-white' : 'bg-white text-navy-500 ring-1 ring-navy-100 hover:bg-navy-50'
+                    }`}
+                  >
+                    {label} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="overflow-hidden rounded-xl border border-navy-100 bg-white">
             {items === null && !error && <p className="p-6 text-sm text-navy-400">Loading…</p>}
             {items?.length === 0 && <p className="p-6 text-sm text-navy-400">No downloads yet.</p>}
-            {items?.map((p) => {
+            {visible?.map((p) => {
               const files = p.content?.files.length ?? 0;
               const kit = files > 1 || (p.content?.links.length ?? 0) > 0;
               const Icon = kit ? Package : FileText;
@@ -156,10 +189,16 @@ export function Downloads({ ownerEmail, onHome }: Props) {
                   </div>
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      p.status === 'published' ? 'bg-emerald-50 text-emerald-700' : 'bg-navy-50 text-navy-500'
+                      p.status === 'published'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : p.status === 'approved'
+                          ? 'bg-brand-50 text-brand-700'
+                          : p.status === 'ready_for_review'
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-navy-50 text-navy-500'
                     }`}
                   >
-                    {p.status}
+                    {releaseLabel(p.status, p.scheduled_publish_at)}
                   </span>
                 </button>
               );
