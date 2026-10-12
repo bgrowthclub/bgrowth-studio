@@ -269,7 +269,7 @@ export function FileLibrary({ onHome }: FileLibraryProps) {
                     {s.state === 'error' && <X className="h-4 w-4 text-red-500" />}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-navy-700">{s.name}</span>
-                  <span className={`shrink-0 ${s.state === 'error' ? 'text-red-500' : 'text-navy-400'}`}>
+                  <span className={`max-w-[55%] truncate ${s.state === 'error' ? 'text-red-500' : 'text-navy-400'}`}>
                     {s.state === 'waiting' && 'waiting'}
                     {s.state === 'skipped' && `skipped — ${s.note}`}
                     {s.state === 'error' && s.note}
