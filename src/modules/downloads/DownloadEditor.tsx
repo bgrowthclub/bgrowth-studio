@@ -9,6 +9,7 @@ import { getDownloadUrl, listFiles } from '../file-library/api';
 import type { LibraryFile } from '../file-library/types';
 import { saveDownload } from './api';
 import { pdfPreviewImage } from './pdfPreview';
+import { ReleasePanel } from './ReleasePanel';
 import type { DownloadDraft } from './types';
 
 interface Props {
@@ -90,25 +91,39 @@ export function DownloadEditor({ initial, ownerEmail, onBack, onSaved }: Props) 
     }
   }
 
-  async function save(status: 'draft' | 'published') {
+  async function save(status: 'draft' | 'published'): Promise<boolean> {
     setError(null);
     setNotice(null);
-    if (!draft.name.trim()) return setError('Give the product a name.');
-    if (!draft.shortDescription.trim()) return setError('Write a short description.');
-    if (status === 'published' && !draft.files.length) return setError('Add at least one file before publishing.');
-    if (!draft.isFree && !(Number(draft.price) > 0)) return setError('Set a price, or mark it as free.');
+    const fail = (message: string) => {
+      setError(message);
+      return false;
+    };
+    if (!draft.name.trim()) return fail('Give the product a name.');
+    if (!draft.shortDescription.trim()) return fail('Write a short description.');
+    if (status === 'published' && !draft.files.length) return fail('Add at least one file before publishing.');
+    if (!draft.isFree && !(Number(draft.price) > 0)) return fail('Set a price, or mark it as free.');
     setBusy(status);
     try {
-      await saveDownload(draft, status, ownerEmail);
-      set('status', status);
+      const result = await saveDownload(draft, status, ownerEmail);
+      setDraft((d) => ({
+        ...d,
+        status,
+        productId: result.product?.id ?? d.productId ?? null,
+        ...(status === 'draft' ? { scheduledPublishAt: null, reviewedBy: null, approvedBy: null } : {}),
+      }));
       setNotice(status === 'published' ? 'Published — it is on bgrowth.app now.' : 'Draft saved.');
       onSaved();
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save.');
+      return fail(err instanceof Error ? err.message : 'Could not save.');
     } finally {
       setBusy(null);
     }
   }
+
+  // Imported Wix products go through review and approval before they can
+  // be published; other products can still be published straight away.
+  const canPublishDirectly = !draft.wix || draft.status === 'approved' || draft.status === 'published';
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 px-4 py-8 sm:px-6">
@@ -283,10 +298,36 @@ export function DownloadEditor({ initial, ownerEmail, onBack, onSaved }: Props) 
 
       {error && <p className="text-sm text-red-500">{error}</p>}
       {notice && <p className="text-sm font-medium text-emerald-600">{notice}</p>}
+      {draft.productId && draft.status !== 'published' && draft.status !== 'archived' ? (
+        <ReleasePanel
+          key={`${draft.status}-${draft.scheduledPublishAt ?? ''}`}
+          productId={draft.productId}
+          status={draft.status}
+          scheduledAt={draft.scheduledPublishAt ?? null}
+          reviewedBy={draft.reviewedBy ?? null}
+          approvedBy={draft.approvedBy ?? null}
+          ownerEmail={ownerEmail}
+          saveFirst={() => save('draft')}
+          onChanged={(next) => {
+            setDraft((d) => ({
+              ...d,
+              status: next.status,
+              scheduledPublishAt: next.scheduledAt,
+              ...(next.reviewedBy !== undefined ? { reviewedBy: next.reviewedBy } : {}),
+              ...(next.approvedBy !== undefined ? { approvedBy: next.approvedBy } : {}),
+            }));
+            onSaved();
+          }}
+        />
+      ) : (
+        !draft.productId && <p className="text-xs text-navy-400">Save a draft to start the release steps (review, approval, date).</p>
+      )}
       <div className="flex flex-wrap gap-2 pb-10">
-        <PrimaryButton type="button" disabled={busy !== null} onClick={() => void save('published')}>
-          {busy === 'published' ? 'Publishing…' : 'Publish'}
-        </PrimaryButton>
+        {canPublishDirectly && (
+          <PrimaryButton type="button" disabled={busy !== null} onClick={() => void save('published')}>
+            {busy === 'published' ? 'Publishing…' : 'Publish'}
+          </PrimaryButton>
+        )}
         <Button type="button" disabled={busy !== null} onClick={() => void save('draft')}>
           {busy === 'draft' ? 'Saving…' : draft.status === 'published' ? 'Save as draft (hides it)' : 'Save draft'}
         </Button>

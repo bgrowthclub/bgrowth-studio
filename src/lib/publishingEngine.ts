@@ -22,6 +22,8 @@ export interface PublishToPortalInput {
   /** Product page gallery (Portal migration 0050). Omitted = keep the current one. */
   gallery?: import('./productGallery').ProductGallery;
   status: PublicationStatus;
+  /** With status "approved": the date it goes on sale by itself (Portal migration 0051). */
+  scheduledPublishAt?: string | null;
   publishedBy: string;
   changeNotes?: string;
   coverImage?: { base64: string; mimeType: string; fileExtension: string } | { url: string };
@@ -83,6 +85,7 @@ export async function publishToPortal(input: PublishToPortalInput): Promise<Publ
         gallery: input.gallery,
         content: input.config,
         status: input.status,
+        scheduledPublishAt: input.scheduledPublishAt,
         destinationKey: 'portal',
         publishedBy: input.publishedBy,
         changeNotes: input.changeNotes,
@@ -132,6 +135,7 @@ export async function publishCalculatorToPortal(input: PublishCalculatorInput): 
         gallery: input.gallery,
         content: input.config,
         status: input.status,
+        scheduledPublishAt: input.scheduledPublishAt,
         destinationKey: 'portal',
         publishedBy: input.publishedBy,
         changeNotes: input.changeNotes,

@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X, Archive, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Plus, Save, Eye, EyeOff, Palette, UploadCloud, ImagePlus, X, Archive, ShieldCheck, AlertTriangle, CalendarClock } from 'lucide-react';
 import { ModuleHeader } from './ModuleHeader';
 import { SectionEditor } from './SectionEditor';
 import { LivePreview } from './LivePreview';
@@ -74,6 +74,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
   const [showPreview, setShowPreview] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [scheduleDay, setScheduleDay] = useState('');
   // Tags from the shared list (Portal migration 0048). null = not loaded
   // yet: publishing then leaves the product's tags as they are.
   const [tags, setTags] = useState<string[] | null>(null);
@@ -275,7 +276,9 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
    * unsaved draft (which would get a throwaway `draft-<timestamp>` id) is
    * blocked rather than silently creating an orphaned Portal product.
    */
-  const handlePublish = async () => {
+  // scheduleAt (ISO): instead of publishing now, save it as approved with a
+  // date — the daily job puts it on sale that day (Portal migration 0051).
+  const handlePublish = async (scheduleAt?: string) => {
     if (!draft.templateId) { showToast('Save the template before publishing'); return; }
     if (!draft.shortDescription?.trim()) { showToast('Add a short description before publishing'); return; }
 
@@ -311,7 +314,8 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         categorySlug,
         tags: tags ?? undefined,
         gallery: gallery ?? undefined,
-        status: 'published',
+        status: scheduleAt ? 'approved' : 'published',
+        scheduledPublishAt: scheduleAt,
         publishedBy: ownerEmail,
         coverImage: pendingCoverImage ?? undefined,
         isTrialEligible,
@@ -334,10 +338,14 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         category: categorySlug || undefined,
         coverImageUrl: result.product?.coverImageUrl ?? draft.coverImageUrl,
         currency: result.product?.currency ?? draft.currency ?? 'usd',
-        publishStatus: 'published',
-        // Prefer the Portal's own authoritative timestamp over a client-side
-        // one, so what Studio remembers matches what's actually stored.
-        publishedAt: result.product?.publishedAt ?? new Date().toISOString(),
+        ...(scheduleAt
+          ? {}
+          : {
+              publishStatus: 'published' as const,
+              // Prefer the Portal's own authoritative timestamp over a client-side
+              // one, so what Studio remembers matches what's actually stored.
+              publishedAt: result.product?.publishedAt ?? new Date().toISOString(),
+            }),
       };
       setDraft(updatedDraft);
       setPendingCoverImage(null);
@@ -366,7 +374,11 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         return;
       }
 
-      showToast(`Published to Portal & Website ✓ (v${result.product?.version})`);
+      showToast(
+        scheduleAt
+          ? `Scheduled ✓ — goes on sale on ${new Date(scheduleAt).toLocaleDateString()}`
+          : `Published to Portal & Website ✓ (v${result.product?.version})`,
+      );
     } catch (e) {
       showToast('Publish failed — ' + (e instanceof Error ? e.message : 'unknown error'));
     } finally {
@@ -509,9 +521,30 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
               <Save className="h-4 w-4" />
               {isSaving ? 'Saving…' : 'Save Template'}
             </PrimaryButton>
+            {draft.publishStatus !== 'published' && (
+              <span className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={scheduleDay}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setScheduleDay(e.target.value)}
+                  className="h-8 rounded-lg border border-navy-100 px-2 text-xs text-navy-700"
+                  title="Pick a day to put it on sale automatically"
+                />
+                <SecondaryButton
+                  size="sm"
+                  onClick={() => void handlePublish(new Date(`${scheduleDay}T08:00:00`).toISOString())}
+                  disabled={isPublishing || !draft.templateId || !scheduleDay}
+                  title={!draft.templateId ? 'Save the template first' : 'Goes on sale by itself on this day'}
+                >
+                  <CalendarClock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Schedule</span>
+                </SecondaryButton>
+              </span>
+            )}
             <SecondaryButton
               size="sm"
-              onClick={handlePublish}
+              onClick={() => void handlePublish()}
               disabled={isPublishing || !draft.templateId}
               title={!draft.templateId ? 'Save the template first' : 'Publish to the BGrowth Portal and the BGrowth Website'}
             >
