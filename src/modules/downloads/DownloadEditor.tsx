@@ -7,7 +7,7 @@ import { CATEGORY_ADMIN_URL, useWorkspaceCategories } from '../../lib/workspaceC
 import { MAX_GALLERY_IMAGES, uploadGalleryFile } from '../../lib/productGallery';
 import { getDownloadUrl, listFiles } from '../file-library/api';
 import type { LibraryFile } from '../file-library/types';
-import { saveDownload } from './api';
+import { releaseAction, saveDownload } from './api';
 import { pdfPreviewImage } from './pdfPreview';
 import { ReleasePanel } from './ReleasePanel';
 import type { DownloadDraft } from './types';
@@ -118,6 +118,19 @@ export function DownloadEditor({ initial, ownerEmail, onBack, onSaved }: Props) 
       return fail(err instanceof Error ? err.message : 'Could not save.');
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function remove() {
+    if (!draft.productId) return;
+    if (!window.confirm(`Delete “${draft.name}”? This can’t be undone. Its files stay in the File Library.`)) return;
+    setError(null);
+    try {
+      await releaseAction(draft.productId, { action: 'delete' });
+      onSaved();
+      onBack();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete.');
     }
   }
 
@@ -296,6 +309,37 @@ export function DownloadEditor({ initial, ownerEmail, onBack, onSaved }: Props) 
         </div>
       </section>
 
+      <section className={`${CARD} space-y-4`}>
+        <div>
+          <h2 className="text-sm font-extrabold text-navy-900">Product page text</h2>
+          <p className="text-xs text-navy-400">Shown on the product page on bgrowth.app. One item per line in the lists.</p>
+        </div>
+        <label className="block">
+          <span className={LABEL}>Long description</span>
+          <textarea
+            value={draft.longDescription}
+            onChange={(e) => set('longDescription', e.target.value)}
+            rows={7}
+            className={INPUT}
+            placeholder="A few paragraphs about the product. Leave empty to use the short description."
+          />
+        </label>
+        <label className="block">
+          <span className={LABEL}>What's included</span>
+          <textarea
+            value={draft.included.join('\n')}
+            onChange={(e) => set('included', e.target.value.split('\n'))}
+            rows={6}
+            className={INPUT}
+            placeholder="Leave empty to list the files."
+          />
+        </label>
+        <label className="block">
+          <span className={LABEL}>Benefits</span>
+          <textarea value={draft.benefits.join('\n')} onChange={(e) => set('benefits', e.target.value.split('\n'))} rows={5} className={INPUT} />
+        </label>
+      </section>
+
       {error && <p className="text-sm text-red-500">{error}</p>}
       {notice && <p className="text-sm font-medium text-emerald-600">{notice}</p>}
       {draft.productId && draft.status !== 'published' && draft.status !== 'archived' ? (
@@ -327,6 +371,11 @@ export function DownloadEditor({ initial, ownerEmail, onBack, onSaved }: Props) 
           <PrimaryButton type="button" disabled={busy !== null} onClick={() => void save('published')}>
             {busy === 'published' ? 'Publishing…' : 'Publish'}
           </PrimaryButton>
+        )}
+        {draft.productId && draft.status !== 'published' && (
+          <Button type="button" disabled={busy !== null} onClick={() => void remove()} className="text-red-500 hover:border-red-200 hover:bg-red-50">
+            <Trash2 className="h-4 w-4" /> Delete
+          </Button>
         )}
         <Button type="button" disabled={busy !== null} onClick={() => void save('draft')}>
           {busy === 'draft' ? 'Saving…' : draft.status === 'published' ? 'Save as draft (hides it)' : 'Save draft'}

@@ -1,8 +1,9 @@
 import { listFiles } from '../file-library/api';
 import type { LibraryFile } from '../file-library/types';
 import { copyWixImage, saveDownload } from './api';
-import type { DownloadFile, DownloadProduct } from './types';
+import type { DownloadDraft, DownloadFile, DownloadProduct } from './types';
 import { WIX_PRODUCTS, type WixProduct } from './wixProducts';
+import { WIX_TEXT } from './wixText';
 
 export interface WixImportProgress {
   done: number;
@@ -30,6 +31,11 @@ function findFile(p: WixProduct, library: LibraryFile[]): DownloadFile | null {
     (wix && pdfs.find((f) => norm(f.name) === wix)) ||
     null;
   return hit ? { id: hit.id, name: hit.name, sizeBytes: hit.size_bytes, mimeType: hit.mime_type } : null;
+}
+
+function howtoText(wixId: string) {
+  const steps = WIX_TEXT[wixId]?.howto ?? [];
+  return steps.map((step, i) => `${i + 1}. ${step}`).join('\n');
 }
 
 async function copyAll(urls: string[]) {
@@ -77,8 +83,11 @@ export async function importWixProducts(
           price: p.price ? p.price.toFixed(2) : '',
           files: file ? [file] : [],
           links: [],
-          instructions: '',
+          instructions: howtoText(p.wixId),
           gallery: { images: rest.slice(0, 6), video: null },
+          longDescription: WIX_TEXT[p.wixId]?.longDescription ?? '',
+          included: WIX_TEXT[p.wixId]?.included ?? [],
+          benefits: WIX_TEXT[p.wixId]?.benefits ?? [],
           status: null,
           wix: { id: p.wixId, file: p.wixFile },
         },
@@ -96,3 +105,66 @@ export async function importWixProducts(
 }
 
 export const WIX_PRODUCT_COUNT = WIX_PRODUCTS.length;
+
+/**
+ * "Update from Wix": for imported products still in Draft, attaches the PDF
+ * when the File Library now has it and fills the product-page text (long
+ * description, what's included, benefits, how-to) — only what is still
+ * empty, so nothing already edited is overwritten.
+ */
+export async function updateFromWix(
+  existing: DownloadProduct[],
+  toDraft: (p: DownloadProduct) => DownloadDraft,
+  ownerEmail: string,
+  onProgress: (p: WixImportProgress) => void,
+): Promise<WixImportProgress & { updated: number }> {
+  const byId = new Map(WIX_PRODUCTS.map((p) => [p.wixId, p]));
+  const targets = existing.filter((d) => d.metadata?.wix && d.status === 'draft');
+  const library = await listFiles();
+  const progress = { done: 0, total: targets.length, current: '', failed: [] as WixImportProgress['failed'], updated: 0 };
+  for (const d of targets) {
+    progress.current = d.name;
+    onProgress({ ...progress });
+    const wix = byId.get(d.metadata!.wix!.id);
+    const text = WIX_TEXT[d.metadata!.wix!.id];
+    const draft = toDraft(d);
+    let changed = false;
+    if (wix && draft.files.length === 0 && draft.links.length === 0) {
+      const file = findFile(wix, library);
+      if (file) {
+        draft.files = [file];
+        changed = true;
+      }
+    }
+    if (text) {
+      if (!draft.longDescription.trim() && text.longDescription) {
+        draft.longDescription = text.longDescription;
+        changed = true;
+      }
+      if (draft.included.length === 0 && text.included.length) {
+        draft.included = text.included;
+        changed = true;
+      }
+      if (draft.benefits.length === 0 && text.benefits.length) {
+        draft.benefits = text.benefits;
+        changed = true;
+      }
+      if (!draft.instructions.trim() && text.howto.length) {
+        draft.instructions = howtoText(d.metadata!.wix!.id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      try {
+        await saveDownload(draft, 'draft', ownerEmail);
+        progress.updated += 1;
+      } catch (err) {
+        progress.failed.push({ name: d.name, error: err instanceof Error ? err.message : 'Could not save.' });
+      }
+    }
+    progress.done += 1;
+    onProgress({ ...progress });
+  }
+  progress.current = '';
+  return progress;
+}

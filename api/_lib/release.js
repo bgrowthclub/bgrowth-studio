@@ -12,6 +12,9 @@
  *        - draft clears the review, the approval and the date
  *   POST { action:'schedule', productId, at: ISO date | null }  (approved only)
  *   POST { action:'publish-now', productId }                     (approved only)
+ *   POST { action:'delete', productId }  — a product never sold (no license,
+ *        no access given, not in a bundle) and not on sale: e.g. an imported
+ *        Wix draft that becomes a Bundle or a Workspace instead.
  *
  * The daily job on the Website publishes approved products whose date has
  * come (portal.publish_scheduled()).
@@ -88,6 +91,26 @@ export async function handleRelease(req, res, supabase, admin) {
       .rpc('publish_existing', { p_product_id: productId, p_published_by: admin.email });
     if (rpcError) return res.status(422).json({ error: rpcError.message });
     return res.json({ ok: true, status: 'published' });
+  }
+
+  if (body.action === 'delete') {
+    const portal = supabase.schema('portal');
+    const [lic, grants, inBundles] = await Promise.all([
+      portal.from('licenses').select('id', { count: 'exact', head: true }).eq('product_id', productId),
+      portal.from('access_grants').select('id', { count: 'exact', head: true }).eq('product_id', productId),
+      portal.from('bundle_items').select('product_id', { count: 'exact', head: true }).eq('product_id', productId),
+    ]);
+    if (lic.error) throw lic.error;
+    if (grants.error) throw grants.error;
+    if ((lic.count ?? 0) > 0 || (grants.count ?? 0) > 0) {
+      return res.status(409).json({ error: 'Someone has access to this product — it can’t be deleted.' });
+    }
+    if (!inBundles.error && (inBundles.count ?? 0) > 0) {
+      return res.status(409).json({ error: 'This product is part of a bundle — take it out of the bundle first.' });
+    }
+    const { error: deleteError } = await products(supabase).delete().eq('id', productId);
+    if (deleteError) throw deleteError;
+    return res.json({ ok: true, deleted: true });
   }
 
   return res.status(400).json({ error: 'Unknown action.' });

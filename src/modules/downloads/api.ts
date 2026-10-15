@@ -26,11 +26,15 @@ export async function saveDownload(draft: DownloadDraft, status: 'draft' | 'publ
   // whether it's a single PDF or a kit. File ids/links stay in the content,
   // which only buyers can read.
   const kit = content.files.length > 1 || content.links.length > 0;
-  const included = [
-    ...content.files.map((f) => f.name.replace(/\.[a-z0-9]+$/i, '')),
-    ...(content.links.length ? [`${content.links.length} editable Canva ${content.links.length === 1 ? 'template' : 'templates'}`] : []),
-    ...(content.instructions.trim() ? ['Step-by-step instructions'] : []),
-  ];
+  const custom = draft.included.map((x) => x.trim()).filter(Boolean);
+  const included = custom.length
+    ? custom
+    : [
+        ...content.files.map((f) => f.name.replace(/\.[a-z0-9]+$/i, '')),
+        ...(content.links.length ? [`${content.links.length} editable Canva ${content.links.length === 1 ? 'template' : 'templates'}`] : []),
+        ...(content.instructions.trim() ? ['Step-by-step instructions'] : []),
+      ];
+  const benefits = draft.benefits.map((x) => x.trim()).filter(Boolean);
   const response = await apiFetch('/api/publishing-engine?action=publish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -44,7 +48,14 @@ export async function saveDownload(draft: DownloadDraft, status: 'draft' | 'publ
       tags: draft.tags,
       gallery: draft.gallery,
       content,
-      metadata: { included, downloadKind: kit ? 'kit' : 'pdf', ...(draft.wix ? { wix: draft.wix } : {}) },
+      metadata: {
+        included,
+        ...(custom.length ? { includedCustom: true } : {}),
+        downloadKind: kit ? 'kit' : 'pdf',
+        ...(draft.longDescription.trim() ? { longDescription: draft.longDescription.trim() } : {}),
+        ...(benefits.length ? { features: benefits.map((title) => ({ title })) } : {}),
+        ...(draft.wix ? { wix: draft.wix } : {}),
+      },
       status,
       destinationKey: 'portal',
       publishedBy,
@@ -76,7 +87,11 @@ export async function copyWixImage(url: string): Promise<string> {
 /** Release flow (Portal migration 0051): move a saved product between stages. */
 export async function releaseAction(
   productId: string,
-  body: { action: 'stage'; stage: 'draft' | 'ready_for_review' | 'approved' } | { action: 'schedule'; at: string | null } | { action: 'publish-now' },
+  body:
+    | { action: 'stage'; stage: 'draft' | 'ready_for_review' | 'approved' }
+    | { action: 'schedule'; at: string | null }
+    | { action: 'publish-now' }
+    | { action: 'delete' },
 ) {
   return parse<{ ok: boolean; status?: string; scheduledPublishAt?: string | null }>(
     await apiFetch('/api/access-management?resource=release', {

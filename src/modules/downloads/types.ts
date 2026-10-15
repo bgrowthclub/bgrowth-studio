@@ -36,7 +36,14 @@ export interface DownloadProduct {
   short_description: string | null;
   status: string;
   content: DownloadContent | null;
-  metadata: { wix?: WixSource } | null;
+  metadata: {
+    wix?: WixSource;
+    longDescription?: string;
+    included?: string[];
+    /** Set by hand in the editor (else "included" is the file list). */
+    includedCustom?: boolean;
+    features?: { title: string; description?: string }[];
+  } | null;
   is_free: boolean;
   price_cents: number | null;
   cover_image_url: string | null;
@@ -65,6 +72,11 @@ export interface DownloadDraft {
   links: DownloadLink[];
   instructions: string;
   gallery: ProductGallery;
+  /** Product page text (products.metadata — read by the site's product page). */
+  longDescription: string;
+  /** "What's included" — empty = list the files. */
+  included: string[];
+  benefits: string[];
   status: string | null;
   /** Set on products imported from the Wix store — kept when re-saved. */
   wix?: WixSource;
