@@ -38,6 +38,12 @@ function howtoText(wixId: string) {
   return steps.map((step, i) => `${i + 1}. ${step}`).join('\n');
 }
 
+// Wix products that are not sold as Downloads here: the Notary Appointment
+// Workspace is already a Studio Workspace (same address, so the draft can't
+// be saved).
+const NOT_DOWNLOADS = new Set(['ede608dd-deba-7b27-8517-922e00b2723b']);
+const IMPORTABLE = WIX_PRODUCTS.filter((p) => !NOT_DOWNLOADS.has(p.wixId));
+
 async function copyAll(urls: string[]) {
   const copied = await Promise.all(urls.map((u) => copyWixImage(u).catch(() => null)));
   return copied.filter((u): u is string => !!u);
@@ -54,7 +60,7 @@ export async function importWixProducts(
   onProgress: (p: WixImportProgress) => void,
 ): Promise<WixImportProgress> {
   const already = new Set(existing.map((d) => d.metadata?.wix?.id).filter(Boolean));
-  const todo = WIX_PRODUCTS.filter((p) => !already.has(p.wixId));
+  const todo = IMPORTABLE.filter((p) => !already.has(p.wixId));
   const library = await listFiles();
   const usedNames = new Map<string, number>();
   for (const d of existing) usedNames.set(d.name.toLowerCase(), 1);
@@ -104,7 +110,7 @@ export async function importWixProducts(
   return progress;
 }
 
-export const WIX_PRODUCT_COUNT = WIX_PRODUCTS.length;
+export const WIX_PRODUCT_COUNT = IMPORTABLE.length;
 
 /**
  * "Update from Wix": for imported products still in Draft, attaches the PDF
