@@ -6,7 +6,7 @@ import { listDownloads } from './api';
 import { DownloadEditor } from './DownloadEditor';
 import type { DownloadDraft, DownloadProduct } from './types';
 import { releaseLabel } from './ReleasePanel';
-import { importWixProducts, WIX_PRODUCT_COUNT, type WixImportProgress } from './wixImport';
+import { importWixProducts, updateFromWix, WIX_PRODUCT_COUNT, type WixImportProgress } from './wixImport';
 
 interface Props {
   ownerEmail: string;
@@ -29,6 +29,9 @@ function toDraft(p: DownloadProduct | null): DownloadDraft {
     gallery: p?.gallery
       ? { images: Array.isArray(p.gallery.images) ? p.gallery.images : [], video: p.gallery.video ?? null }
       : EMPTY_GALLERY,
+    longDescription: p?.metadata?.longDescription ?? '',
+    included: p?.metadata?.includedCustom ? (p.metadata.included ?? []) : [],
+    benefits: (p?.metadata?.features ?? []).map((f) => f.title),
     status: p?.status ?? null,
     wix: p?.metadata?.wix,
     productId: p?.id ?? null,
@@ -68,6 +71,24 @@ export function Downloads({ ownerEmail, onHome }: Props) {
   const visible = items?.filter((d) => stage === 'all' || d.status === stage || (stage === 'draft' && d.status === 'archived'));
   const imported = items?.filter((d) => d.metadata?.wix).length ?? 0;
   const left = WIX_PRODUCT_COUNT - imported;
+
+  const wixDrafts = items?.filter((d) => d.metadata?.wix && d.status === 'draft').length ?? 0;
+
+  async function runWixUpdate() {
+    if (!items) return;
+    if (!window.confirm(`Fill the text and attach the PDFs of ${wixDrafts} Wix drafts? Only empty parts are filled; nothing you edited changes.`)) return;
+    setImportDone(null);
+    setImporting({ done: 0, total: wixDrafts, current: '', failed: [] });
+    try {
+      const result = await updateFromWix(items, toDraft, ownerEmail, setImporting);
+      setImportDone({ ...result, total: result.updated + result.failed.length });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The update stopped.');
+    } finally {
+      setImporting(null);
+      load();
+    }
+  }
 
   async function runWixImport() {
     if (!items) return;
@@ -112,6 +133,11 @@ export function Downloads({ ownerEmail, onHome }: Props) {
                   <Store className="h-4 w-4" /> Import from Wix ({left})
                 </Button>
               )}
+              {wixDrafts > 0 && (
+                <Button type="button" size="sm" disabled={importing !== null} onClick={() => void runWixUpdate()}>
+                  <Store className="h-4 w-4" /> Update from Wix ({wixDrafts})
+                </Button>
+              )}
               <PrimaryButton type="button" size="sm" onClick={() => setEditing(toDraft(null))}>
                 <Plus className="h-4 w-4" /> New download
               </PrimaryButton>
@@ -126,7 +152,7 @@ export function Downloads({ ownerEmail, onHome }: Props) {
           )}
           {importDone && (
             <div className="mb-4 rounded-xl border border-navy-100 bg-white px-4 py-3 text-sm text-navy-700">
-              {importDone.total - importDone.failed.length} drafts created from Wix.
+              {importDone.total - importDone.failed.length} drafts saved from Wix.
               {importDone.failed.length > 0 && (
                 <ul className="mt-1 text-xs text-red-500">
                   {importDone.failed.map((f) => (
