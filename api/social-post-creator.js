@@ -20,6 +20,13 @@ import {
 } from './_lib/socialPostCreator/promptBuilder.js';
 import { DEFAULT_CONTENT_LANGUAGE, CONTENT_LANGUAGE_LABELS } from './_lib/socialPostCreator/contentSpecs.js';
 import { requireAdmin } from './_lib/requireAdmin.js';
+import { friendlyAiError } from './_lib/ai/friendlyError.js';
+
+function sendAiError(res, tag, err) {
+  console.error(`[social-post-creator:${tag}]`, err);
+  const { status, message } = friendlyAiError(err);
+  return res.status(status).json({ ok: false, error: message });
+}
 
 function normalizeLanguage(language) {
   return language && CONTENT_LANGUAGE_LABELS[language] ? language : DEFAULT_CONTENT_LANGUAGE;
@@ -53,8 +60,7 @@ async function handleAnalyzePhotos(req, res) {
     });
     return res.status(200).json({ ok: true, analysis: output });
   } catch (err) {
-    console.error('[social-post-creator:analyze-photos]', err);
-    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    return sendAiError(res, 'analyze-photos', err);
   }
 }
 
@@ -69,13 +75,12 @@ async function handleGenerateCarousel(req, res) {
     const { output } = await runGeneration({ taskType: 'social_post_creator_generate_carousel', prompt });
     return res.status(200).json({ ok: true, slides: output?.slides ?? [] });
   } catch (err) {
-    console.error('[social-post-creator:generate-carousel]', err);
-    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    return sendAiError(res, 'generate-carousel', err);
   }
 }
 
 async function handleGenerateCopy(req, res) {
-  const { analysis, objective, customObjective, platform, target, existing, language } = req.body ?? {};
+  const { analysis, objective, customObjective, platform, target, existing, language, withHashtags } = req.body ?? {};
   if (!analysis || !objective || !platform || !target) {
     return res.status(400).json({ ok: false, error: 'analysis, objective, platform, and target are required.' });
   }
@@ -84,12 +89,27 @@ async function handleGenerateCopy(req, res) {
   }
 
   try {
-    const prompt = buildCopyPrompt({ analysis, objective, customObjective, platform, target, existing, language: normalizeLanguage(language) });
+    // First generation (target 'all') can also return the hashtags in the same
+    // AI call — one request fewer per post (free-tier quota).
+    const includeHashtags = target === 'all' && withHashtags === true;
+    const prompt = buildCopyPrompt({
+      analysis,
+      objective,
+      customObjective,
+      platform,
+      target,
+      existing,
+      language: normalizeLanguage(language),
+      withHashtags: includeHashtags,
+    });
     const { output } = await runGeneration({ taskType: 'social_post_creator_generate_copy', prompt });
+    if (includeHashtags) {
+      const { hashtags, ...copy } = output ?? {};
+      return res.status(200).json({ ok: true, copy, hashtags: hashtags ?? null });
+    }
     return res.status(200).json({ ok: true, copy: output ?? {} });
   } catch (err) {
-    console.error('[social-post-creator:generate-copy]', err);
-    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    return sendAiError(res, 'generate-copy', err);
   }
 }
 
@@ -104,8 +124,7 @@ async function handleGenerateHashtags(req, res) {
     const { output } = await runGeneration({ taskType: 'social_post_creator_generate_hashtags', prompt });
     return res.status(200).json({ ok: true, hashtags: output ?? {} });
   } catch (err) {
-    console.error('[social-post-creator:generate-hashtags]', err);
-    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    return sendAiError(res, 'generate-hashtags', err);
   }
 }
 

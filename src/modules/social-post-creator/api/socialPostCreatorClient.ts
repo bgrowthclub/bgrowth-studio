@@ -53,9 +53,11 @@ export async function generateCopy(input: {
   target: CopyTarget;
   existing?: Partial<GeneratedCopy>;
   language: ContentLanguage;
-}): Promise<Partial<GeneratedCopy>> {
-  const { copy } = await post<{ copy: Partial<GeneratedCopy> }>('generate-copy', input);
-  return copy;
+  /** target 'all' only: also return the hashtags in the same AI call. */
+  withHashtags?: boolean;
+}): Promise<{ copy: Partial<GeneratedCopy>; hashtags: HashtagGroups | null }> {
+  const { copy, hashtags } = await post<{ copy: Partial<GeneratedCopy>; hashtags?: HashtagGroups | null }>('generate-copy', input);
+  return { copy, hashtags: hashtags ?? null };
 }
 
 export async function generateHashtags(input: {

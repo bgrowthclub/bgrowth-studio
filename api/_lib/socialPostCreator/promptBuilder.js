@@ -73,7 +73,7 @@ export function buildCarouselPrompt({ analysis, objective, customObjective, plat
  * along so a single-field regeneration stays consistent with the rest of
  * the post instead of drifting from it.
  */
-export function buildCopyPrompt({ analysis, objective, customObjective, platform, target, existing, language }) {
+export function buildCopyPrompt({ analysis, objective, customObjective, platform, target, existing, language, withHashtags = false }) {
   const lines = [
     'You are writing social media copy based on real, specific photos — never generic motivational filler.',
     objectiveLine(objective, customObjective),
@@ -93,10 +93,25 @@ export function buildCopyPrompt({ analysis, objective, customObjective, platform
     }
   }
 
+  if (withHashtags) {
+    lines.push(HASHTAGS_INSTRUCTIONS);
+    lines.push(languageLine(language) + ' ' + HASHTAGS_LANGUAGE_NOTE);
+    lines.push(
+      `Return ONLY valid JSON matching this exact shape, no other text: { "phrase": string, "caption": string, "cta": string, "hashtags": ${HASHTAGS_SCHEMA} }`,
+    );
+    return lines.join('\n');
+  }
+
   lines.push(languageLine(language));
   lines.push(`Return ONLY valid JSON matching this exact shape, no other text: ${copySchemaFor(target)}`);
   return lines.join('\n');
 }
+
+// Shared by the hashtag-only prompt and the copy prompt that also returns hashtags.
+const HASHTAGS_INSTRUCTIONS =
+  'Hashtags: base them on the visual content, product/service, niche, likely audience, and the publication objective. Organize them into groups: niche, product/service, audience, location (only if a location is genuinely implied by the photos — otherwise leave empty), and brand (only if a brand name/handle is evident — otherwise leave empty).';
+const HASHTAGS_LANGUAGE_NOTE =
+  'Keep the hashtags natural and idiomatic for that language, platform, audience, and niche — do not mechanically translate hashtags word-for-word when that would produce unnatural or irrelevant tags; a widely-used tag in its original form (e.g. an English or brand-standard tag) is fine when that is genuinely how people tag this content in that language/market.';
 
 export function buildHashtagsPrompt({ analysis, objective, customObjective, platform, language }) {
   return [
@@ -104,8 +119,8 @@ export function buildHashtagsPrompt({ analysis, objective, customObjective, plat
     objectiveLine(objective, customObjective),
     platformLine(platform),
     `Photo set analysis: ${JSON.stringify(analysis)}`,
-    'Base the hashtags on the visual content, product/service, niche, likely audience, and the publication objective. Organize them into groups: niche, product/service, audience, location (only if a location is genuinely implied by the photos — otherwise leave empty), and brand (only if a brand name/handle is evident — otherwise leave empty).',
-    `${languageLine(language)} Keep the hashtags natural and idiomatic for that language, platform, audience, and niche — do not mechanically translate hashtags word-for-word when that would produce unnatural or irrelevant tags; a widely-used tag in its original form (e.g. an English or brand-standard tag) is fine when that is genuinely how people tag this content in that language/market.`,
+    HASHTAGS_INSTRUCTIONS,
+    `${languageLine(language)} ${HASHTAGS_LANGUAGE_NOTE}`,
     `Return ONLY valid JSON matching this exact shape, no other text: ${HASHTAGS_SCHEMA}`,
   ].join('\n');
 }
