@@ -1,11 +1,32 @@
-import { useState } from 'react';
-import { Copy, Download } from 'lucide-react';
-import { SecondaryButton } from '../../../components/ui/Button';
-import { SLIDE_ROLE_LABELS, type CarouselSlide, type GeneratedCopy, type HashtagGroups, type PreviewTab, type UploadedPhoto } from '../types';
+import { useEffect, useState } from 'react';
+import { Copy, Download, Loader2, Share2 } from 'lucide-react';
+import { PrimaryButton, SecondaryButton } from '../../../components/ui/Button';
+import {
+  DEFAULT_SLIDE_FORMAT,
+  SLIDE_FORMATS,
+  SLIDE_ROLE_LABELS,
+  type CarouselSlide,
+  type GeneratedCopy,
+  type HashtagGroups,
+  type Platform,
+  type PreviewTab,
+  type SlideFormat,
+  type UploadedPhoto,
+} from '../types';
+import {
+  canShareFiles,
+  downloadBlob,
+  downloadDataUrl,
+  renderSlide,
+  slideFileName,
+  slideFiles,
+  zipSlides,
+} from '../lib/slideImages';
 
 interface PreviewStepProps {
   slides: CarouselSlide[];
   analyzedPhotos: UploadedPhoto[];
+  platform: Platform | null;
   copy: GeneratedCopy;
   hashtags: HashtagGroups;
   onCopied: (message: string) => void;
@@ -31,17 +52,62 @@ async function copyText(text: string, onCopied: (message: string) => void, label
   }
 }
 
-function downloadDataUrl(dataUrl: string, filename: string) {
-  const a = document.createElement('a');
-  a.href = dataUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
-export function PreviewStep({ slides, analyzedPhotos, copy, hashtags, onCopied }: PreviewStepProps) {
+export function PreviewStep({ slides, analyzedPhotos, platform, copy, hashtags, onCopied }: PreviewStepProps) {
   const [tab, setTab] = useState<PreviewTab>('carousel');
+  const [format, setFormat] = useState<SlideFormat>(platform ? DEFAULT_SLIDE_FORMAT[platform] : 'portrait');
+  // The finished slide images (photo cropped to the format + its text), in slide order.
+  const [rendered, setRendered] = useState<(string | null)[]>([]);
+  const [renderError, setRenderError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'zip' | 'share' | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRendered([]);
+    setRenderError(null);
+    Promise.all(
+      slides.map((slide) => {
+        const photo = analyzedPhotos[slide.photoIndex];
+        if (!photo) return Promise.resolve(null);
+        return renderSlide(photo.exportDataUrl || photo.dataUrl, slide.hasText ? slide.text : '', format);
+      }),
+    )
+      .then((images) => {
+        if (!cancelled) setRendered(images);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setRenderError(err instanceof Error ? err.message : 'Could not create the slide images.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slides, analyzedPhotos, format]);
+
+  const ready = rendered.filter((img): img is string => !!img);
+  const isRendering = slides.length > 0 && rendered.length === 0 && !renderError;
+  const files = ready.length ? slideFiles(ready) : [];
+  const shareable = files.length > 0 && canShareFiles(files);
+
+  const downloadAll = async () => {
+    setBusy('zip');
+    try {
+      downloadBlob(await zipSlides(ready), 'carousel.zip');
+    } catch {
+      onCopied('Could not create the .zip — download the slides one by one.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const shareAll = async () => {
+    setBusy('share');
+    try {
+      await navigator.share({ files });
+    } catch {
+      // Cancelled by the user, or the app refused — nothing to do.
+    } finally {
+      setBusy(null);
+    }
+  };
   const tags = flatHashtags(hashtags);
   const hashtagsText = tags.join(' ');
   const fullPost = [copy.phrase, '', copy.caption, '', copy.cta, '', hashtagsText].filter((line) => line !== undefined).join('\n');
@@ -69,36 +135,71 @@ export function PreviewStep({ slides, analyzedPhotos, copy, hashtags, onCopied }
       </div>
 
       {tab === 'carousel' && (
-        <div className="space-y-3">
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {slides.map((slide, index) => {
-              const photo = analyzedPhotos[slide.photoIndex];
-              return (
-                <div key={slide._key} className="w-40 shrink-0">
-                  <div className="relative aspect-square overflow-hidden rounded-xl border border-navy-100 bg-navy-50">
-                    {photo && <img src={photo.dataUrl} alt="" className="h-full w-full object-cover" />}
-                    {slide.hasText && slide.text && (
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy-900/80 to-transparent p-2">
-                        <p className="text-[11px] font-bold leading-snug text-white">{slide.text}</p>
-                      </div>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-navy-500">Size</span>
+            {(Object.keys(SLIDE_FORMATS) as SlideFormat[]).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFormat(f)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                  format === f ? 'bg-brand text-white' : 'bg-navy-50 text-navy-500 hover:bg-navy-100'
+                }`}
+              >
+                {SLIDE_FORMATS[f].label}
+              </button>
+            ))}
+          </div>
+
+          {renderError ? (
+            <p className="text-sm text-red-500">{renderError}</p>
+          ) : isRendering ? (
+            <p className="flex items-center gap-2 text-sm text-navy-400">
+              <Loader2 className="h-4 w-4 animate-spin" /> Creating your slides…
+            </p>
+          ) : (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {slides.map((slide, index) => {
+                const image = rendered[index];
+                return (
+                  <div key={slide._key} className="w-40 shrink-0">
+                    <div
+                      className="overflow-hidden rounded-xl border border-navy-100 bg-navy-50"
+                      style={{ aspectRatio: `${SLIDE_FORMATS[format].width} / ${SLIDE_FORMATS[format].height}` }}
+                    >
+                      {image && <img src={image} alt={`Slide ${index + 1}`} className="h-full w-full object-cover" />}
+                    </div>
+                    <p className="mt-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-navy-400">
+                      {index + 1} · {SLIDE_ROLE_LABELS[slide.role]}
+                    </p>
+                    {image && (
+                      <SecondaryButton size="sm" className="mt-1 w-full" onClick={() => downloadDataUrl(image, slideFileName(index))}>
+                        <Download className="h-3.5 w-3.5" /> Download
+                      </SecondaryButton>
                     )}
                   </div>
-                  <p className="mt-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-navy-400">
-                    {index + 1} · {SLIDE_ROLE_LABELS[slide.role]}
-                  </p>
-                  {photo && (
-                    <SecondaryButton
-                      size="sm"
-                      className="mt-1 w-full"
-                      onClick={() => downloadDataUrl(photo.dataUrl, `slide-${index + 1}.jpg`)}
-                    >
-                      <Download className="h-3.5 w-3.5" /> Download
-                    </SecondaryButton>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
+
+          {ready.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <PrimaryButton onClick={() => void downloadAll()} disabled={busy !== null}>
+                {busy === 'zip' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Download all (.zip)
+              </PrimaryButton>
+              {shareable && (
+                <SecondaryButton onClick={() => void shareAll()} disabled={busy !== null}>
+                  <Share2 className="h-4 w-4" /> Share to Instagram, WhatsApp…
+                </SecondaryButton>
+              )}
+            </div>
+          )}
+          <p className="text-[11px] text-navy-400">
+            {SLIDE_FORMATS[format].width} × {SLIDE_FORMATS[format].height} px, with each slide's text on the image. Photos are cropped from the
+            centre to fit the size.
+          </p>
         </div>
       )}
 

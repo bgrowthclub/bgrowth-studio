@@ -9,6 +9,7 @@ import { CopyStep } from './steps/CopyStep';
 import { HashtagStep } from './steps/HashtagStep';
 import { PreviewStep } from './steps/PreviewStep';
 import { analyzePhotos, generateCarousel, generateCopy, generateHashtags } from './api/socialPostCreatorClient';
+import { shrinkDataUrl } from './lib/slideImages';
 import {
   DEFAULT_CONTENT_LANGUAGE,
   WIZARD_STEPS,
@@ -32,6 +33,9 @@ interface SocialPostCreatorProps {
 
 const EMPTY_COPY: GeneratedCopy = { phrase: '', caption: '', cta: '' };
 const EMPTY_HASHTAGS: HashtagGroups = { niche: [], product: [], audience: [], location: [], brand: [] };
+// The server (Vercel) refuses requests over ~4.5 MB; stay well under it.
+const MAX_ANALYSIS_CHARS = 3_500_000;
+
 const KNOWN_ROLES: SlideRole[] = [
   'cover',
   'product_detail',
@@ -135,7 +139,11 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setIsAnalyzing(true);
     setAnalyzeError(null);
     try {
-      const images = photos.map((p) => ({ mimeType: 'image/jpeg', data: stripDataUrlPrefix(p.dataUrl) }));
+      let sources = photos.map((p) => p.dataUrl);
+      const total = () => sources.reduce((n, src) => n + src.length, 0);
+      if (total() > MAX_ANALYSIS_CHARS) sources = await Promise.all(sources.map((src) => shrinkDataUrl(src, 768, 0.7)));
+      if (total() > MAX_ANALYSIS_CHARS) sources = await Promise.all(sources.map((src) => shrinkDataUrl(src, 560, 0.65)));
+      const images = sources.map((src) => ({ mimeType: 'image/jpeg', data: stripDataUrlPrefix(src) }));
       const result = await analyzePhotos(images, language);
       setAnalysis(result);
       setAnalyzedPhotos(photos);
@@ -389,7 +397,14 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
               />
             )}
             {step === 'preview' && (
-              <PreviewStep slides={slides} analyzedPhotos={analyzedPhotos} copy={copy} hashtags={hashtags} onCopied={showToast} />
+              <PreviewStep
+                slides={slides}
+                analyzedPhotos={analyzedPhotos}
+                platform={platform}
+                copy={copy}
+                hashtags={hashtags}
+                onCopied={showToast}
+              />
             )}
           </div>
         </div>

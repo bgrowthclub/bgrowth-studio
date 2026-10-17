@@ -70,6 +70,8 @@ export interface UploadedPhoto {
   /** Full data: URL (data:image/jpeg;base64,...) from compressImage() — used directly as <img src> and as the payload sent for analysis. */
   dataUrl: string;
   sizeKB: number;
+  /** Larger copy (up to 2160px) kept only in the browser for the exported slides — never sent to the AI. */
+  exportDataUrl: string;
 }
 
 export interface PhotoAnalysisEntry {
@@ -136,3 +138,19 @@ export const WIZARD_STEPS: { id: WizardStep; label: string }[] = [
 ];
 
 export type PreviewTab = 'carousel' | 'caption' | 'hashtags' | 'cta';
+
+/** Size of the exported slide images (1080px wide). */
+export type SlideFormat = 'portrait' | 'square' | 'story';
+
+export const SLIDE_FORMATS: Record<SlideFormat, { label: string; width: number; height: number }> = {
+  portrait: { label: '4:5 · Feed', width: 1080, height: 1350 },
+  square: { label: '1:1 · Square', width: 1080, height: 1080 },
+  story: { label: '9:16 · Stories / TikTok', width: 1080, height: 1920 },
+};
+
+export const DEFAULT_SLIDE_FORMAT: Record<Platform, SlideFormat> = {
+  instagram: 'portrait',
+  facebook: 'portrait',
+  tiktok: 'story',
+  linkedin: 'square',
+};
