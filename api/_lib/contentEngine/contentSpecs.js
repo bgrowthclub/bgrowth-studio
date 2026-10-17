@@ -9,7 +9,7 @@ export const CONTENT_SPECS = {
   caption: {
     label: 'Caption',
     instruction:
-      'Write a single social media caption promoting this Workspace, plus a matching set of hashtags.',
+      'Write a single social media caption promoting this product, plus a matching set of hashtags.',
     schema: '{ "caption": string, "hashtags": string[] }',
   },
   carousel: {
@@ -29,7 +29,7 @@ export const CONTENT_SPECS = {
   hook_cta: {
     label: 'Hooks & CTAs',
     instruction:
-      'Write 5 alternative opening hooks and 5 alternative closing calls to action for this Workspace, usable across any post format.',
+      'Write 5 alternative opening hooks and 5 alternative closing calls to action for this product, usable across any post format.',
     schema: '{ "hooks": string[], "ctas": string[] }',
   },
 };

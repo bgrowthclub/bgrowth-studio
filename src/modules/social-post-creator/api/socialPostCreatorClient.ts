@@ -1,4 +1,7 @@
-import type { ContentLanguage, CopyTarget, GeneratedCopy, HashtagGroups, PhotoAnalysis, PostObjective, Platform } from '../types';
+import type { ContentLanguage, CopyTarget, GeneratedCopy, HashtagGroups, LinkedProduct, PhotoAnalysis, PostObjective, Platform } from '../types';
+
+/** What the server needs about a linked product. */
+export type ProductContext = Pick<LinkedProduct, 'name' | 'short_description'> | null;
 
 import { apiFetch } from '../../../lib/apiClient';
 async function parseOrThrow<T>(response: Response): Promise<T> {
@@ -40,6 +43,7 @@ export async function generateCarousel(input: {
   platform: Platform;
   photoCount: number;
   language: ContentLanguage;
+  product?: ProductContext;
 }): Promise<RawCarouselSlide[]> {
   const { slides } = await post<{ slides: RawCarouselSlide[] }>('generate-carousel', input);
   return slides;
@@ -53,6 +57,7 @@ export async function generateCopy(input: {
   target: CopyTarget;
   existing?: Partial<GeneratedCopy>;
   language: ContentLanguage;
+  product?: ProductContext;
   /** target 'all' only: also return the hashtags in the same AI call. */
   withHashtags?: boolean;
 }): Promise<{ copy: Partial<GeneratedCopy>; hashtags: HashtagGroups | null }> {
@@ -66,6 +71,7 @@ export async function generateHashtags(input: {
   customObjective?: string;
   platform: Platform;
   language: ContentLanguage;
+  product?: ProductContext;
 }): Promise<HashtagGroups> {
   const { hashtags } = await post<{ hashtags: HashtagGroups }>('generate-hashtags', input);
   return hashtags;

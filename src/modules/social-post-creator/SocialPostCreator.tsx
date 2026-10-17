@@ -18,6 +18,7 @@ import {
   type CopyTarget,
   type GeneratedCopy,
   type HashtagGroups,
+  type LinkedProduct,
   type PhotoAnalysis,
   type Platform,
   type PostObjective,
@@ -29,6 +30,8 @@ import {
 interface SocialPostCreatorProps {
   ownerEmail: string;
   onHome?: () => void;
+  /** Inside Content Engine (Photo Post tab): no own sidebar — steps run across the top. */
+  embedded?: boolean;
 }
 
 const EMPTY_COPY: GeneratedCopy = { phrase: '', caption: '', cta: '' };
@@ -64,7 +67,7 @@ function newKey(prefix: string): string {
  * Everything generated here is session/client-side only; nothing persists
  * once the tab closes, by design for V1.
  */
-export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps) {
+export function SocialPostCreator({ ownerEmail, onHome, embedded = false }: SocialPostCreatorProps) {
   const [step, setStep] = useState<WizardStep>('photos');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -78,6 +81,8 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
   const [objective, setObjective] = useState<PostObjective | null>(null);
   const [customObjective, setCustomObjective] = useState('');
   const [platform, setPlatform] = useState<Platform | null>(null);
+  const [product, setProduct] = useState<LinkedProduct | null>(null);
+  const productContext = product ? { name: product.name, short_description: product.short_description } : null;
   const [language, setLanguage] = useState<ContentLanguage>(DEFAULT_CONTENT_LANGUAGE);
   // Set whenever a generation call succeeds, to the language it was generated
   // in — lets us flag "content is stale for the newly-selected language"
@@ -160,7 +165,7 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setIsCarouselLoading(true);
     setCarouselError(null);
     try {
-      const raw = await generateCarousel({ analysis, objective, customObjective, platform, photoCount: analyzedPhotos.length, language });
+      const raw = await generateCarousel({ analysis, objective, customObjective, platform, photoCount: analyzedPhotos.length, language, product: productContext });
       const nextSlides: CarouselSlide[] = raw.map((s) => ({
         _key: newKey('slide'),
         photoIndex: s.photoIndex,
@@ -199,6 +204,7 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
         target,
         existing: target === 'all' ? undefined : copy,
         language,
+        product: productContext,
         withHashtags: target === 'all' && !hasHashtags,
       });
       setCopy((prev) => ({ ...prev, ...result.copy }));
@@ -222,7 +228,7 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setIsHashtagsLoading(true);
     setHashtagsError(null);
     try {
-      const result = await generateHashtags({ analysis, objective, customObjective, platform, language });
+      const result = await generateHashtags({ analysis, objective, customObjective, platform, language, product: productContext });
       setHashtags(result);
       setGeneratedLanguage(language);
     } catch (err) {
@@ -247,6 +253,7 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     setObjective(null);
     setCustomObjective('');
     setPlatform(null);
+    setProduct(null);
     setLanguage(DEFAULT_CONTENT_LANGUAGE);
     setGeneratedLanguage(null);
     setSlides([]);
@@ -258,6 +265,129 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
   };
 
   const isStepReachable = (index: number) => index <= stepIndex;
+
+  const stepBody = (
+    <>
+      {step === 'photos' && (
+        <PhotoUploadStep
+          photos={photos}
+          onChangePhotos={handleChangePhotos}
+          onContinue={handleAnalyze}
+          isAnalyzing={isAnalyzing}
+          analyzeError={analyzeError}
+        />
+      )}
+      {step === 'objective' && (
+        <ObjectivePlatformStep
+          objective={objective}
+          customObjective={customObjective}
+          platform={platform}
+          language={language}
+          onChangeObjective={setObjective}
+          onChangeCustomObjective={setCustomObjective}
+          onChangePlatform={setPlatform}
+          onChangeLanguage={setLanguage}
+          languageChangedSinceGeneration={generatedLanguage !== null && generatedLanguage !== language}
+          product={product}
+          onChangeProduct={setProduct}
+          onContinue={handleContinueToCarousel}
+        />
+      )}
+      {step === 'carousel' && (
+        <CarouselStep
+          slides={slides}
+          analyzedPhotos={analyzedPhotos}
+          isLoading={isCarouselLoading}
+          error={carouselError}
+          onChangeSlides={setSlides}
+          onRegenerate={() => void runCarouselGeneration()}
+          onContinue={handleContinueToCopy}
+        />
+      )}
+      {step === 'copy' && (
+        <CopyStep
+          copy={copy}
+          isLoading={isCopyLoading}
+          regeneratingField={regeneratingField}
+          error={copyError}
+          onChange={(patch) => setCopy((prev) => ({ ...prev, ...patch }))}
+          onRegenerate={(target) => void runCopyGeneration(target)}
+          onContinue={handleContinueToHashtags}
+        />
+      )}
+      {step === 'hashtags' && (
+        <HashtagStep
+          hashtags={hashtags}
+          isLoading={isHashtagsLoading}
+          error={hashtagsError}
+          onChange={setHashtags}
+          onRegenerate={() => void runHashtagsGeneration()}
+          onContinue={() => setStep('preview')}
+        />
+      )}
+      {step === 'preview' && (
+        <PreviewStep
+          slides={slides}
+          analyzedPhotos={analyzedPhotos}
+          platform={platform}
+          product={product}
+          copy={copy}
+          hashtags={hashtags}
+          onCopied={showToast}
+        />
+      )}
+    </>
+  );
+
+  const overlays = (
+    <>
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title="Change your photos?"
+        description="Changing the photo set will clear the carousel, copy, and hashtags already generated from it."
+        confirmLabel="Change Photos"
+        onConfirm={confirmPhotosChange}
+        onCancel={() => {
+          setPendingPhotos(null);
+          setResetConfirmOpen(false);
+        }}
+      />
+      <Toast message={toast.message} visible={toast.visible} />
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-5 flex flex-wrap items-center gap-1.5">
+          {WIZARD_STEPS.map((s, index) => {
+            const isActive = step === s.id;
+            const isDone = index < stepIndex;
+            const reachable = isStepReachable(index);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                disabled={!reachable}
+                onClick={() => setStep(s.id)}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                  isActive ? 'bg-brand text-white' : reachable ? 'bg-white text-navy-500 hover:bg-navy-50' : 'bg-white/60 text-navy-300 cursor-not-allowed'
+                }`}
+              >
+                {isDone ? <Check className="h-3 w-3" /> : <span>{index + 1}</span>}
+                {s.label}
+              </button>
+            );
+          })}
+          <button type="button" onClick={handleStartOver} className="ml-auto text-[11px] font-bold text-navy-400 hover:text-red-600">
+            Start Over
+          </button>
+        </div>
+        {stepBody}
+        {overlays}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#f4f6fb] overflow-hidden font-sans">
@@ -346,87 +476,12 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="mx-auto max-w-3xl">
-            {step === 'photos' && (
-              <PhotoUploadStep
-                photos={photos}
-                onChangePhotos={handleChangePhotos}
-                onContinue={handleAnalyze}
-                isAnalyzing={isAnalyzing}
-                analyzeError={analyzeError}
-              />
-            )}
-            {step === 'objective' && (
-              <ObjectivePlatformStep
-                objective={objective}
-                customObjective={customObjective}
-                platform={platform}
-                language={language}
-                onChangeObjective={setObjective}
-                onChangeCustomObjective={setCustomObjective}
-                onChangePlatform={setPlatform}
-                onChangeLanguage={setLanguage}
-                languageChangedSinceGeneration={generatedLanguage !== null && generatedLanguage !== language}
-                onContinue={handleContinueToCarousel}
-              />
-            )}
-            {step === 'carousel' && (
-              <CarouselStep
-                slides={slides}
-                analyzedPhotos={analyzedPhotos}
-                isLoading={isCarouselLoading}
-                error={carouselError}
-                onChangeSlides={setSlides}
-                onRegenerate={() => void runCarouselGeneration()}
-                onContinue={handleContinueToCopy}
-              />
-            )}
-            {step === 'copy' && (
-              <CopyStep
-                copy={copy}
-                isLoading={isCopyLoading}
-                regeneratingField={regeneratingField}
-                error={copyError}
-                onChange={(patch) => setCopy((prev) => ({ ...prev, ...patch }))}
-                onRegenerate={(target) => void runCopyGeneration(target)}
-                onContinue={handleContinueToHashtags}
-              />
-            )}
-            {step === 'hashtags' && (
-              <HashtagStep
-                hashtags={hashtags}
-                isLoading={isHashtagsLoading}
-                error={hashtagsError}
-                onChange={setHashtags}
-                onRegenerate={() => void runHashtagsGeneration()}
-                onContinue={() => setStep('preview')}
-              />
-            )}
-            {step === 'preview' && (
-              <PreviewStep
-                slides={slides}
-                analyzedPhotos={analyzedPhotos}
-                platform={platform}
-                copy={copy}
-                hashtags={hashtags}
-                onCopied={showToast}
-              />
-            )}
+            {stepBody}
           </div>
         </div>
       </main>
 
-      <ConfirmDialog
-        open={resetConfirmOpen}
-        title="Change your photos?"
-        description="Changing the photo set will clear the carousel, copy, and hashtags already generated from it."
-        confirmLabel="Change Photos"
-        onConfirm={confirmPhotosChange}
-        onCancel={() => {
-          setPendingPhotos(null);
-          setResetConfirmOpen(false);
-        }}
-      />
-      <Toast message={toast.message} visible={toast.visible} />
+      {overlays}
     </div>
   );
 }

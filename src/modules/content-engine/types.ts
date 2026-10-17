@@ -157,6 +157,8 @@ export interface PublishedProductSummary {
   name: string;
   short_description: string;
   cover_image_url: string | null;
+  /** workspace / calculator / pdf (Download) / bundle — since Sprint 96. */
+  content_type?: string;
 }
 
 export const PLATFORM_LABELS: Record<Platform, string> = {

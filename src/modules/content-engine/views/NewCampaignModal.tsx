@@ -4,6 +4,13 @@ import { createCampaign, fetchStrategies, searchPublishedProducts } from '../api
 import type { Campaign, ContentStrategy, Language, Platform, PublishedProductSummary } from '../types';
 import { LANGUAGE_LABELS, PLATFORM_LABELS } from '../types';
 
+function productKindLabel(type?: string) {
+  if (type === 'pdf') return 'Download';
+  if (type === 'bundle') return 'Bundle';
+  if (type === 'calculator') return 'Calculator';
+  return 'Workspace';
+}
+
 interface NewCampaignModalProps {
   onClose: () => void;
   onCreated: (campaign: Campaign) => void;
@@ -102,10 +109,10 @@ export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) 
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${selectedProduct?.product_id === product.product_id ? 'bg-brand-50 text-brand-700 font-semibold' : 'hover:bg-navy-50 text-navy-700'}`}
                 >
                   <span className="truncate">{product.name}</span>
-                  <span className="ml-2 shrink-0 text-[11px] text-navy-400">{product.slug}</span>
+                  <span className="ml-2 shrink-0 text-[11px] text-navy-400">{productKindLabel(product.content_type)}</span>
                 </button>
               ))}
-              {!error && products.length === 0 && <p className="px-3 py-2 text-xs text-navy-400">No published Workspaces found.</p>}
+              {!error && products.length === 0 && <p className="px-3 py-2 text-xs text-navy-400">No published products found.</p>}
             </div>
           </div>
 

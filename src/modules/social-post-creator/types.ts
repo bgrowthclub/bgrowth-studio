@@ -139,6 +139,25 @@ export const WIZARD_STEPS: { id: WizardStep; label: string }[] = [
 
 export type PreviewTab = 'carousel' | 'caption' | 'hashtags' | 'cta';
 
+/** Optional BGrowth product the post promotes (Content Engine's catalog list). */
+export interface LinkedProduct {
+  id: string;
+  slug: string;
+  name: string;
+  short_description: string;
+  content_type?: string;
+}
+
+/** The bgrowth.app link for the post, tagged like Content Engine's UTM links. */
+export function productPostLink(product: LinkedProduct, platform: Platform | null) {
+  const url = new URL(`/product/${product.slug}`, 'https://bgrowth.app');
+  if (platform) url.searchParams.set('utm_source', platform);
+  url.searchParams.set('utm_medium', 'social');
+  url.searchParams.set('utm_campaign', 'photo-post');
+  url.searchParams.set('utm_content', 'carousel');
+  return url.toString();
+}
+
 /** Size of the exported slide images (1080px wide). */
 export type SlideFormat = 'portrait' | 'square' | 'story';
 

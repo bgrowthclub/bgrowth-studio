@@ -3,6 +3,7 @@ import { runGeneration } from '../_lib/ai/runGeneration.js';
 import { buildGenerationPrompt } from '../_lib/contentEngine/promptBuilder.js';
 import { CONTENT_SPECS, PLATFORM_LABELS } from '../_lib/contentEngine/contentSpecs.js';
 import { requireAdmin } from '../_lib/requireAdmin.js';
+import { friendlyAiError } from '../_lib/ai/friendlyError.js';
 
 const VALID_PLATFORMS = Object.keys(PLATFORM_LABELS);
 const VALID_CONTENT_TYPES = Object.keys(CONTENT_SPECS);
@@ -167,15 +168,25 @@ export default async function handler(req, res) {
     .single();
   if (brandError || !brandProfile) return res.status(500).json({ error: 'Brand profile not configured.' });
 
-  const { data: product, error: productError } = await supabase
+  // portal.products (not catalog_index) so Downloads and Bundles work too;
+  // tags still come from catalog_index when the product is listed there.
+  const { data: productRow, error: productError } = await supabase
     .schema('portal')
-    .from('catalog_index')
-    .select('product_id, slug, name, short_description, tags')
-    .eq('product_id', campaign.product_id)
-    .single();
-  if (productError || !product) {
+    .from('products')
+    .select('id, slug, name, short_description')
+    .eq('id', campaign.product_id)
+    .eq('status', 'published')
+    .maybeSingle();
+  if (productError || !productRow) {
     return res.status(404).json({ error: 'This campaign\'s product is no longer published.' });
   }
+  const { data: indexed } = await supabase
+    .schema('portal')
+    .from('catalog_index')
+    .select('tags')
+    .eq('product_id', productRow.id)
+    .maybeSingle();
+  const product = { product_id: productRow.id, slug: productRow.slug, name: productRow.name, short_description: productRow.short_description, tags: indexed?.tags ?? [] };
 
   // Platform guidance is optional — a platform with no row here yet (or a
   // lookup error) must never block generation, only omit that section of
@@ -217,7 +228,8 @@ export default async function handler(req, res) {
   try {
     generation = await runGeneration({ taskType: contentType, prompt });
   } catch (err) {
-    return res.status(502).json({ error: `AI generation failed: ${err.message}` });
+    const { status, message } = friendlyAiError(err);
+    return res.status(status === 500 ? 502 : status).json({ error: `AI generation failed: ${message}` });
   }
 
   const { data: contentItem, error: insertError } = await supabase

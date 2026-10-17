@@ -62,7 +62,7 @@ const TOOLS: StudioTool[] = [
   {
     id: 'content-engine',
     name: 'Content Engine',
-    description: 'Generate on-brand social content for published Workspaces — captions, carousels, scripts and more — and manage them from draft to published.',
+    description: 'Social content for every published product (Workspaces, Downloads, Bundles) plus Photo Post — turn your own photos into ready-to-post carousels.',
     icon: 'content-engine',
     color: '#DB2777',
     status: 'live',
@@ -94,7 +94,7 @@ const TOOLS: StudioTool[] = [
   {
     id: 'social-post-creator',
     name: 'Social Post Creator',
-    description: 'Turn your own photos into a complete social media publication — carousel sequence, copy, and hashtags.',
+    description: 'Now inside Content Engine (Photo Post): your photos become ready-to-post carousel images, copy and hashtags.',
     icon: 'social-post-creator',
     color: '#EA580C',
     status: 'live',

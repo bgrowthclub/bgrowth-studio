@@ -1,11 +1,13 @@
 import { PrimaryButton } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { FormField } from '../../../components/ui/FormField';
+import { ProductPicker } from '../components/ProductPicker';
 import {
   CONTENT_LANGUAGE_LABELS,
   PLATFORM_LABELS,
   POST_OBJECTIVE_LABELS,
   type ContentLanguage,
+  type LinkedProduct,
   type Platform,
   type PostObjective,
 } from '../types';
@@ -21,6 +23,8 @@ interface ObjectivePlatformStepProps {
   onChangeLanguage: (language: ContentLanguage) => void;
   /** True once any carousel/copy/hashtags content exists that was generated in a different language than the one currently selected — shows a "regenerate to apply" notice instead of silently translating anything. */
   languageChangedSinceGeneration: boolean;
+  product: LinkedProduct | null;
+  onChangeProduct: (product: LinkedProduct | null) => void;
   onContinue: () => void;
 }
 
@@ -34,6 +38,8 @@ export function ObjectivePlatformStep({
   onChangePlatform,
   onChangeLanguage,
   languageChangedSinceGeneration,
+  product,
+  onChangeProduct,
   onContinue,
 }: ObjectivePlatformStepProps) {
   const canContinue = Boolean(objective) && (objective !== 'other' || customObjective.trim().length > 0) && Boolean(platform);
@@ -119,6 +125,12 @@ export function ObjectivePlatformStep({
             Content already generated won't be translated automatically — regenerate the carousel, copy, or hashtags to apply {CONTENT_LANGUAGE_LABELS[language]}.
           </p>
         )}
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-navy-400">BGrowth product (optional)</p>
+        <p className="mb-2 text-xs text-navy-400">If this post promotes one of our products, pick it — the copy will mention it and you get a tracked bgrowth.app link.</p>
+        <ProductPicker product={product} onChange={onChangeProduct} />
       </div>
 
       <div className="flex justify-end">
