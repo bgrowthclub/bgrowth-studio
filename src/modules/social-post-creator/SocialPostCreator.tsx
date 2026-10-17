@@ -188,6 +188,9 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
     else setRegeneratingField(target);
     setCopyError(null);
     try {
+      // The first generation also brings the hashtags (one AI call fewer),
+      // unless the member already has hashtags to keep.
+      const hasHashtags = Object.values(hashtags).some((group) => group.length > 0);
       const result = await generateCopy({
         analysis,
         objective,
@@ -196,8 +199,10 @@ export function SocialPostCreator({ ownerEmail, onHome }: SocialPostCreatorProps
         target,
         existing: target === 'all' ? undefined : copy,
         language,
+        withHashtags: target === 'all' && !hasHashtags,
       });
-      setCopy((prev) => ({ ...prev, ...result }));
+      setCopy((prev) => ({ ...prev, ...result.copy }));
+      if (result.hashtags) setHashtags({ ...EMPTY_HASHTAGS, ...result.hashtags });
       setGeneratedLanguage(language);
     } catch (err) {
       setCopyError(err instanceof Error ? err.message : 'Could not generate copy.');
