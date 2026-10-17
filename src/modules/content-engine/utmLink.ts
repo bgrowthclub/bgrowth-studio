@@ -8,13 +8,14 @@ import type { Campaign, ContentItem } from './types';
  * origin (not a secret — just where /product/:slug lives).
  */
 export function buildUtmLink(campaign: Pick<Campaign, 'product_slug' | 'utm_campaign'>, item: Pick<ContentItem, 'platform' | 'content_type'>) {
-  const base = import.meta.env.VITE_PORTAL_BASE_URL || '';
-  const url = new URL(`/product/${campaign.product_slug}`, base || 'https://portal.invalid');
+  // Since Sprint 96 posts link to bgrowth.app (where everything is sold;
+  // /product/:slug also opens Bundles). VITE_SITE_BASE_URL can override it.
+  const base = import.meta.env.VITE_SITE_BASE_URL || 'https://bgrowth.app';
+  const url = new URL(`/product/${campaign.product_slug}`, base);
   url.searchParams.set('utm_source', item.platform);
   url.searchParams.set('utm_medium', 'social');
   url.searchParams.set('utm_campaign', campaign.utm_campaign);
   url.searchParams.set('utm_content', item.content_type);
 
-  const full = url.toString();
-  return base ? full : full.replace('https://portal.invalid', '');
+  return url.toString();
 }

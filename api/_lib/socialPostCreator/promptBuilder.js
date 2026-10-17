@@ -16,6 +16,12 @@ function objectiveLine(objective, customObjective) {
   return `Publication objective: ${POST_OBJECTIVE_LABELS[objective] ?? objective}.`;
 }
 
+// When the post promotes a BGrowth product (Content Engine catalog).
+function productLine(product) {
+  if (!product?.name) return null;
+  return `This post also promotes a BGrowth product sold at bgrowth.app: "${product.name}"${product.short_description ? ` — ${product.short_description}` : ''}. Connect the photos to this product naturally and accurately (never invent features it doesn't have); a call to action may invite people to get it at bgrowth.app.`;
+}
+
 function platformLine(platform) {
   return `Platform: ${PLATFORM_LABELS[platform] ?? platform}. ${PLATFORM_NOTES[platform] ?? ''}`;
 }
@@ -49,7 +55,7 @@ export function buildAnalysisPrompt({ photoCount, language }) {
  * the photos — the images were already understood in buildAnalysisPrompt;
  * this step reasons about them, it doesn't need to re-see them.
  */
-export function buildCarouselPrompt({ analysis, objective, customObjective, platform, photoCount, language }) {
+export function buildCarouselPrompt({ analysis, objective, customObjective, platform, photoCount, language, product = null }) {
   const roles = Object.entries(SLIDE_ROLE_LABELS)
     .map(([id, label]) => `"${id}" (${label})`)
     .join(', ');
@@ -57,13 +63,16 @@ export function buildCarouselPrompt({ analysis, objective, customObjective, plat
     `You are recommending a social media carousel slide sequence from ${photoCount} already-analyzed photos.`,
     objectiveLine(objective, customObjective),
     platformLine(platform),
+    productLine(product),
     `Photo set analysis: ${JSON.stringify(analysis)}`,
     `For each slide, recommend the best photoIndex (matching the analysis's photo indexes) and a role. Available roles: ${roles}.`,
     'You do not have to use every photo — use only the ones that genuinely serve the objective, in the order that tells the best visual story. Do not pad the sequence with slides that add nothing.',
     'For each slide, suggest a short text overlay (a few words, never a paragraph) ONLY when text genuinely adds value to that specific slide. Many strong slides should have suggestedText set to null and rely on the photo alone — do not force text onto every slide.',
     `Any suggestedText you do include must follow the language instruction below. ${languageLine(language)}`,
     `Return ONLY valid JSON matching this exact shape, no other text: ${CAROUSEL_SCHEMA}`,
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /**
@@ -73,13 +82,14 @@ export function buildCarouselPrompt({ analysis, objective, customObjective, plat
  * along so a single-field regeneration stays consistent with the rest of
  * the post instead of drifting from it.
  */
-export function buildCopyPrompt({ analysis, objective, customObjective, platform, target, existing, language, withHashtags = false }) {
+export function buildCopyPrompt({ analysis, objective, customObjective, platform, target, existing, language, withHashtags = false, product = null }) {
   const lines = [
     'You are writing social media copy based on real, specific photos — never generic motivational filler.',
     objectiveLine(objective, customObjective),
     platformLine(platform),
+    productLine(product),
     `Photo set analysis: ${JSON.stringify(analysis)}`,
-  ];
+  ].filter(Boolean);
 
   if (target === 'all') {
     lines.push(
@@ -113,14 +123,17 @@ const HASHTAGS_INSTRUCTIONS =
 const HASHTAGS_LANGUAGE_NOTE =
   'Keep the hashtags natural and idiomatic for that language, platform, audience, and niche — do not mechanically translate hashtags word-for-word when that would produce unnatural or irrelevant tags; a widely-used tag in its original form (e.g. an English or brand-standard tag) is fine when that is genuinely how people tag this content in that language/market.';
 
-export function buildHashtagsPrompt({ analysis, objective, customObjective, platform, language }) {
+export function buildHashtagsPrompt({ analysis, objective, customObjective, platform, language, product = null }) {
   return [
     'You are generating hashtags for a social media post based on real, specific photos — not a random generic list.',
     objectiveLine(objective, customObjective),
     platformLine(platform),
+    productLine(product),
     `Photo set analysis: ${JSON.stringify(analysis)}`,
     HASHTAGS_INSTRUCTIONS,
     `${languageLine(language)} ${HASHTAGS_LANGUAGE_NOTE}`,
     `Return ONLY valid JSON matching this exact shape, no other text: ${HASHTAGS_SCHEMA}`,
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }

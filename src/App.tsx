@@ -12,7 +12,6 @@ import { KnowledgeEngine } from './modules/knowledge-engine/KnowledgeEngine';
 import { ContentEngine } from './modules/content-engine/ContentEngine';
 import { RequireAdmin } from './auth/RequireAdmin';
 import { AccessManagement } from './modules/access-management/AccessManagement';
-import { SocialPostCreator } from './modules/social-post-creator/SocialPostCreator';
 import { FileLibrary } from './modules/file-library/FileLibrary';
 import { Downloads } from './modules/downloads/Downloads';
 import { ProductHeader } from './components/ProductHeader';
@@ -335,7 +334,7 @@ function StudioApp({ ownerEmail }: { ownerEmail: string }) {
   );
 
   if (activeTool === 'social-post-creator') return (
-    <SocialPostCreator ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
+    <ContentEngine ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} initialTab="photo-post" />
   );
 
   if (activeTool) return (

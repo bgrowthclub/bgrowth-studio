@@ -39,19 +39,24 @@ export default async function handler(req, res) {
     // VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY build-time variables. Same
     // query shape as before — no change to what's selected or how it's
     // filtered/ordered/limited.
+    // Since Sprint 96: every published product sold on bgrowth.app —
+    // Workspaces, calculators, Downloads and Bundles — read from
+    // portal.products (catalog_index never holds Bundles).
     if (req.query.resource === 'catalog') {
       const q = (req.query.q ?? '').trim();
       let query = supabase
         .schema('portal')
-        .from('catalog_index')
-        .select('product_id, slug, name, short_description, cover_image_url')
-        .order('published_at', { ascending: false })
-        .limit(25);
+        .from('products')
+        .select('id, slug, name, short_description, cover_image_url, content_type')
+        .eq('status', 'published')
+        .order('last_published_at', { ascending: false, nullsFirst: false })
+        .limit(40);
       if (q) query = query.ilike('name', `%${q}%`);
 
       const { data, error } = await query;
       if (error) return res.status(500).json({ error: error.message });
-      return res.json({ products: data });
+      const products = (data ?? []).map(({ id, ...rest }) => ({ product_id: id, ...rest }));
+      return res.json({ products });
     }
 
     const { data, error } = await supabase

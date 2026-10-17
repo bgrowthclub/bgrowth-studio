@@ -1,21 +1,26 @@
 import { useState } from 'react';
-import { Megaphone, LayoutList, CalendarDays, Palette, Menu, X, ArrowLeft } from 'lucide-react';
+import { Megaphone, LayoutList, CalendarDays, Palette, Menu, X, ArrowLeft, Camera } from 'lucide-react';
 import { CampaignsView } from './views/CampaignsView';
 import { CampaignDetailView } from './views/CampaignDetailView';
 import { ContentLibraryView } from './views/ContentLibraryView';
 import { CalendarView } from './views/CalendarView';
 import { BrandProfileView } from './views/BrandProfileView';
+import { SocialPostCreator } from '../social-post-creator/SocialPostCreator';
 
-type Tab = 'campaigns' | 'library' | 'calendar' | 'brand';
+// 'photo-post' is the Social Post Creator, merged in (Sprint 96).
+export type ContentEngineTab = 'campaigns' | 'photo-post' | 'library' | 'calendar' | 'brand';
+type Tab = ContentEngineTab;
 type View = { mode: 'list' } | { mode: 'campaign'; campaignId: string };
 
 interface ContentEngineProps {
   ownerEmail: string;
   onHome?: () => void;
+  initialTab?: ContentEngineTab;
 }
 
 const NAV_ITEMS: { id: Tab; label: string; icon: typeof Megaphone }[] = [
   { id: 'campaigns', label: 'Campaigns', icon: Megaphone },
+  { id: 'photo-post', label: 'Photo Post', icon: Camera },
   { id: 'library', label: 'Content Library', icon: LayoutList },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'brand', label: 'Brand Profile', icon: Palette },
@@ -23,6 +28,7 @@ const NAV_ITEMS: { id: Tab; label: string; icon: typeof Megaphone }[] = [
 
 const TAB_TITLES: Record<Tab, string> = {
   campaigns: 'Campaigns',
+  'photo-post': 'Photo Post',
   library: 'Content Library',
   calendar: 'Publishing Calendar',
   brand: 'Brand Profile',
@@ -34,8 +40,8 @@ const TAB_TITLES: Record<Tab, string> = {
  * can assume an authenticated Studio admin. Follows the same
  * sidebar-tabs-plus-detail-view shell KnowledgeEngine already established.
  */
-export function ContentEngine({ ownerEmail, onHome }: ContentEngineProps) {
-  const [tab, setTab] = useState<Tab>('campaigns');
+export function ContentEngine({ ownerEmail, onHome, initialTab = 'campaigns' }: ContentEngineProps) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [view, setView] = useState<View>({ mode: 'list' });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -119,6 +125,10 @@ export function ContentEngine({ ownerEmail, onHome }: ContentEngineProps) {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {/* Kept mounted (only hidden) so a photo post in progress survives switching tabs. */}
+          <div className={tab === 'photo-post' && view.mode === 'list' ? '' : 'hidden'}>
+            <SocialPostCreator ownerEmail={ownerEmail} embedded />
+          </div>
           {view.mode === 'campaign' ? (
             <CampaignDetailView campaignId={view.campaignId} onBack={backToList} />
           ) : (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Download, Loader2, Share2 } from 'lucide-react';
+import { Copy, Download, Link2, Loader2, Share2 } from 'lucide-react';
 import { PrimaryButton, SecondaryButton } from '../../../components/ui/Button';
 import {
   DEFAULT_SLIDE_FORMAT,
@@ -8,10 +8,12 @@ import {
   type CarouselSlide,
   type GeneratedCopy,
   type HashtagGroups,
+  type LinkedProduct,
   type Platform,
   type PreviewTab,
   type SlideFormat,
   type UploadedPhoto,
+  productPostLink,
 } from '../types';
 import {
   canShareFiles,
@@ -27,6 +29,7 @@ interface PreviewStepProps {
   slides: CarouselSlide[];
   analyzedPhotos: UploadedPhoto[];
   platform: Platform | null;
+  product: LinkedProduct | null;
   copy: GeneratedCopy;
   hashtags: HashtagGroups;
   onCopied: (message: string) => void;
@@ -52,7 +55,8 @@ async function copyText(text: string, onCopied: (message: string) => void, label
   }
 }
 
-export function PreviewStep({ slides, analyzedPhotos, platform, copy, hashtags, onCopied }: PreviewStepProps) {
+export function PreviewStep({ slides, analyzedPhotos, platform, product, copy, hashtags, onCopied }: PreviewStepProps) {
+  const link = product ? productPostLink(product, platform) : null;
   const [tab, setTab] = useState<PreviewTab>('carousel');
   const [format, setFormat] = useState<SlideFormat>(platform ? DEFAULT_SLIDE_FORMAT[platform] : 'portrait');
   // The finished slide images (photo cropped to the format + its text), in slide order.
@@ -239,6 +243,16 @@ export function PreviewStep({ slides, analyzedPhotos, platform, copy, hashtags, 
           <div className="rounded-xl border border-navy-100 bg-white p-4 text-sm font-semibold text-navy-800">{copy.cta}</div>
           <SecondaryButton onClick={() => copyText(copy.cta, onCopied, 'CTA')}>
             <Copy className="h-4 w-4" /> Copy CTA
+          </SecondaryButton>
+        </div>
+      )}
+
+      {link && (
+        <div className="flex items-center gap-2 rounded-xl border border-navy-100 bg-white px-3 py-2.5">
+          <Link2 className="h-4 w-4 shrink-0 text-navy-400" />
+          <p className="flex-1 truncate text-xs text-navy-500">{link}</p>
+          <SecondaryButton size="sm" onClick={() => copyText(link, onCopied, 'Link')}>
+            <Copy className="h-3.5 w-3.5" /> Copy link
           </SecondaryButton>
         </div>
       )}
