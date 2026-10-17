@@ -14,11 +14,13 @@ function productKindLabel(type?: string) {
 interface NewCampaignModalProps {
   onClose: () => void;
   onCreated: (campaign: Campaign) => void;
+  /** Pre-fills the product search (Opportunities → "Create campaign"). */
+  initialQuery?: string;
 }
 
-export function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) {
+export function NewCampaignModal({ onClose, onCreated, initialQuery = '' }: NewCampaignModalProps) {
   const [strategies, setStrategies] = useState<ContentStrategy[]>([]);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [products, setProducts] = useState<PublishedProductSummary[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<PublishedProductSummary | null>(null);
   const [strategyId, setStrategyId] = useState('');
