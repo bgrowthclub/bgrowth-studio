@@ -42,6 +42,32 @@ export default async function handler(req, res) {
     // Since Sprint 96: every published product sold on bgrowth.app —
     // Workspaces, calculators, Downloads and Bundles — read from
     // portal.products (catalog_index never holds Bundles).
+    // ?resource=searches&days=30 — what visitors typed in the catalog search
+    // on bgrowth.app and the Portal's Browse (portal.site_search_stats,
+    // Portal migration 0052; daily totals, nothing about who searched),
+    // summed per search over the period. Opportunities tab (Sprint 99).
+    if (req.query.resource === 'searches') {
+      const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+      const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .schema('portal')
+        .from('site_search_stats')
+        .select('day, query, had_results, count')
+        .gte('day', since)
+        .limit(10000);
+      if (error) return res.status(500).json({ error: error.message });
+      const byQuery = new Map();
+      for (const row of data ?? []) {
+        const item = byQuery.get(row.query) ?? { query: row.query, count: 0, no_results: 0, last_day: row.day };
+        item.count += row.count;
+        if (!row.had_results) item.no_results += row.count;
+        if (row.day > item.last_day) item.last_day = row.day;
+        byQuery.set(row.query, item);
+      }
+      const searches = [...byQuery.values()].sort((a, b) => b.count - a.count || (a.last_day < b.last_day ? 1 : -1));
+      return res.json({ searches, since });
+    }
+
     if (req.query.resource === 'catalog') {
       const q = (req.query.q ?? '').trim();
       let query = supabase

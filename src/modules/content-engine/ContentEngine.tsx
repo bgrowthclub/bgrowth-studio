@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Megaphone, LayoutList, CalendarDays, Palette, Menu, X, ArrowLeft, Camera } from 'lucide-react';
+import { Megaphone, LayoutList, CalendarDays, Palette, Menu, X, ArrowLeft, Camera, Lightbulb } from 'lucide-react';
 import { CampaignsView } from './views/CampaignsView';
 import { CampaignDetailView } from './views/CampaignDetailView';
 import { ContentLibraryView } from './views/ContentLibraryView';
 import { CalendarView } from './views/CalendarView';
 import { BrandProfileView } from './views/BrandProfileView';
+import { OpportunitiesView } from './views/OpportunitiesView';
 import { SocialPostCreator } from '../social-post-creator/SocialPostCreator';
 
 // 'photo-post' is the Social Post Creator, merged in (Sprint 96).
-export type ContentEngineTab = 'campaigns' | 'photo-post' | 'library' | 'calendar' | 'brand';
+export type ContentEngineTab = 'campaigns' | 'photo-post' | 'opportunities' | 'library' | 'calendar' | 'brand';
 type Tab = ContentEngineTab;
 type View = { mode: 'list' } | { mode: 'campaign'; campaignId: string };
 
@@ -21,6 +22,7 @@ interface ContentEngineProps {
 const NAV_ITEMS: { id: Tab; label: string; icon: typeof Megaphone }[] = [
   { id: 'campaigns', label: 'Campaigns', icon: Megaphone },
   { id: 'photo-post', label: 'Photo Post', icon: Camera },
+  { id: 'opportunities', label: 'Opportunities', icon: Lightbulb },
   { id: 'library', label: 'Content Library', icon: LayoutList },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'brand', label: 'Brand Profile', icon: Palette },
@@ -29,6 +31,7 @@ const NAV_ITEMS: { id: Tab; label: string; icon: typeof Megaphone }[] = [
 const TAB_TITLES: Record<Tab, string> = {
   campaigns: 'Campaigns',
   'photo-post': 'Photo Post',
+  opportunities: 'Opportunities',
   library: 'Content Library',
   calendar: 'Publishing Calendar',
   brand: 'Brand Profile',
@@ -134,6 +137,7 @@ export function ContentEngine({ ownerEmail, onHome, initialTab = 'campaigns' }: 
           ) : (
             <>
               {tab === 'campaigns' && <CampaignsView onOpenCampaign={openCampaign} />}
+              {tab === 'opportunities' && <OpportunitiesView onOpenCampaign={openCampaign} />}
               {tab === 'library' && <ContentLibraryView onOpenCampaign={openCampaign} />}
               {tab === 'calendar' && <CalendarView onOpenCampaign={openCampaign} />}
               {tab === 'brand' && <BrandProfileView />}

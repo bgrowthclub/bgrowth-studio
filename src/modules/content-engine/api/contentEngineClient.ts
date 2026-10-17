@@ -49,6 +49,21 @@ export async function searchPublishedProducts(query: string): Promise<PublishedP
   return products;
 }
 
+export interface SiteSearch {
+  query: string;
+  count: number;
+  /** How many of those searches found nothing in the catalog. */
+  no_results: number;
+  last_day: string;
+}
+
+/** What visitors searched for in the catalog over the last `days` days (Opportunities tab). */
+export async function fetchSiteSearches(days: number): Promise<SiteSearch[]> {
+  const res = await apiFetch(`/api/content-engine/campaigns?resource=searches&days=${days}`);
+  const { searches } = await parseOrThrow<{ searches: SiteSearch[] }>(res);
+  return searches;
+}
+
 export async function createCampaign(input: {
   productId: string;
   productSlug: string;
