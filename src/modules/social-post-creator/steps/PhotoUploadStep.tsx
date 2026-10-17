@@ -18,12 +18,18 @@ import type { UploadedPhoto } from '../types';
 
 const MAX_PHOTOS = 10;
 
-// HEIC/HEIF decode isn't reliably supported by mobile Canvas/Image pipelines
-// (see compressImage in lib/utils.ts) — rejected explicitly, with a clear
-// message, rather than letting them fail deep inside compression. `accept`
-// on the <input> is a hint only (some mobile pickers ignore it entirely), so
-// this runtime check is the actual enforcement.
+// iPhone photos (HEIC/HEIF) can't be drawn on a canvas in most browsers, so
+// they're converted to JPEG first (heic2any, loaded only when needed).
 const HEIC_MIME_TYPES = ['image/heic', 'image/heif'];
+const isHeic = (f: File) => HEIC_MIME_TYPES.includes(f.type.toLowerCase()) || /\.(heic|heif)$/i.test(f.name);
+
+async function toJpegIfHeic(file: File): Promise<File> {
+  if (!isHeic(file)) return file;
+  const { default: heic2any } = await import('heic2any');
+  const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+  const blob = Array.isArray(result) ? result[0] : result;
+  return new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+}
 
 // Generous, defensive-only ceiling — normal modern phone photos (even
 // high-megapixel camera JPEGs) are nowhere near this; it only guards against
@@ -48,16 +54,14 @@ export function PhotoUploadStep({ photos, onChangePhotos, onContinue, isAnalyzin
 
   const addFiles = async (fileList: FileList | File[]) => {
     setProcessingError(null);
-    const imageFiles = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    // Some pickers leave HEIC files without a type, so the extension counts too.
+    const imageFiles = Array.from(fileList).filter((f) => f.type.startsWith('image/') || isHeic(f));
     if (imageFiles.length === 0) return;
 
-    const heicCount = imageFiles.filter((f) => HEIC_MIME_TYPES.includes(f.type.toLowerCase())).length;
-    const withoutHeic = imageFiles.filter((f) => !HEIC_MIME_TYPES.includes(f.type.toLowerCase()));
-    const oversizedCount = withoutHeic.filter((f) => f.size > MAX_FILE_SIZE_BYTES).length;
-    const files = withoutHeic.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
+    const oversizedCount = imageFiles.filter((f) => f.size > MAX_FILE_SIZE_BYTES).length;
+    const files = imageFiles.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
 
     const notes: string[] = [];
-    if (heicCount > 0) notes.push("HEIC/HEIF photos aren't supported yet — please choose a JPG or PNG photo.");
     if (oversizedCount > 0) notes.push(`${oversizedCount === 1 ? 'One photo is' : `${oversizedCount} photos are`} too large to upload.`);
 
     if (files.length === 0) {
@@ -73,13 +77,21 @@ export function PhotoUploadStep({ photos, onChangePhotos, onContinue, isAnalyzin
 
     try {
       const toAdd = await Promise.all(
-        files.slice(0, room).map(async (file) => {
-          const { base64, sizeKB } = await compressImage(file);
+        files.slice(0, room).map(async (original) => {
+          let file: File;
+          try {
+            file = await toJpegIfHeic(original);
+          } catch {
+            throw new Error(`Couldn't convert "${original.name}" (iPhone photo). Please try again or export it as JPG.`);
+          }
+          // Small copy for the AI, large copy for the exported slides.
+          const [{ base64, sizeKB }, large] = await Promise.all([compressImage(file), compressImage(file, 2160, 2160, 0.9)]);
           const photo: UploadedPhoto = {
             _key: `photo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             name: file.name,
             dataUrl: base64,
             sizeKB,
+            exportDataUrl: large.base64,
           };
           return photo;
         })
@@ -135,11 +147,11 @@ export function PhotoUploadStep({ photos, onChangePhotos, onContinue, isAnalyzin
       >
         <UploadCloud className="h-8 w-8 text-navy-400" />
         <p className="text-sm font-semibold text-navy-700">Drag and drop photos here, or click to browse</p>
-        <p className="text-xs text-navy-400">JPEG/PNG · up to {MAX_PHOTOS} photos</p>
+        <p className="text-xs text-navy-400">JPEG, PNG or iPhone (HEIC) · up to {MAX_PHOTOS} photos</p>
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png"
+          accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
           multiple
           className="hidden"
           onChange={(e) => {
