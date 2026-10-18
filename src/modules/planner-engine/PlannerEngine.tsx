@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+
 import {
   BookOpen, Star, Trash2, Plus,
   Layers, Link, Check,
@@ -17,6 +18,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { gasGetPlanners, gasSavePlanners } from '../../lib/studioSync';
 import { ImportPlannerJsonModal } from './ImportPlannerJsonModal';
 import { applyBrandTheme } from '../../engine/theme';
+import { notifyEmbedParent, publicPlannerUrl } from '../../lib/embed';
 
 type SidebarView = 'my-planners' | 'templates' | 'favorites' | 'trash';
 type ActiveScreen = 'list' | 'builder' | 'fill';
@@ -171,7 +173,7 @@ export function PlannerEngine({ ownerEmail, initialPlannerId, isPublic }: Planne
 
   const handleCopyLink = (id: string) => {
     const emailToUse = ownerEmail || 'benterprisesusa@gmail.com';
-    const url = `${window.location.origin}/?planner=${id}&owner=${encodeURIComponent(emailToUse)}`;
+    const url = publicPlannerUrl(id, emailToUse);
     navigator.clipboard.writeText(url).then(() => {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
@@ -195,6 +197,7 @@ export function PlannerEngine({ ownerEmail, initialPlannerId, isPublic }: Planne
   // where clicking "Back" from a public planner could land on the full
   // Studio planner dashboard.
   if (isPublic) {
+    if (activePlanner || !isLoadingPublicPlanner) notifyEmbedParent(activePlanner ? 'ready' : 'not-found');
     if (!activePlanner) {
       return (
         <div className="flex h-screen flex-col items-center justify-center gap-3 bg-[#f4f6fb] text-center">
