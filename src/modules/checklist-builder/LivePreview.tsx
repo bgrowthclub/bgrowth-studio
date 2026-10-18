@@ -100,7 +100,7 @@ export function LivePreview({ config }: LivePreviewProps) {
   }, [config.brand.primaryColor]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <div className="flex items-center gap-2 border-b border-navy-100 bg-white px-4 py-3">
         <Eye className="h-4 w-4 text-navy-400" />
         <span className="text-sm font-semibold text-navy-700">Live Preview</span>
@@ -108,7 +108,7 @@ export function LivePreview({ config }: LivePreviewProps) {
           {config.brand.primaryColor}
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto bg-[#f4f6fb] p-4">
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#f4f6fb] p-4">
         <PreviewErrorBoundary resetKey={resetKey}>
           <PreviewInner key={resetKey} config={config} />
         </PreviewErrorBoundary>
