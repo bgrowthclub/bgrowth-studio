@@ -896,7 +896,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
 
         {/* RIGHT — Live Preview (desktop only unless toggled) */}
         {showPreview && (
-          <div className="hidden flex-1 lg:flex lg:flex-col">
+          <div className="hidden min-w-0 flex-1 lg:flex lg:flex-col">
             {liveConfig ? (
               <LivePreview config={liveConfig} />
             ) : (
