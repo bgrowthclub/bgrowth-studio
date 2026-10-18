@@ -15,6 +15,7 @@ const STATUS_COLORS: Record<PublishStatus, string> = {
   'Published': 'bg-emerald-50 text-emerald-700',
   'Draft': 'bg-amber-50 text-amber-700',
   'In Review': 'bg-blue-50 text-blue-700',
+  'Approved': 'bg-teal-50 text-teal-700',
   'Scheduled': 'bg-purple-50 text-purple-700',
   'Archived': 'bg-slate-100 text-slate-600',
 };
@@ -58,7 +59,7 @@ export function Library({ items, onNew, onEdit, onPreview, onDelete }: LibraryPr
         <div className="flex items-center gap-1.5 text-xs text-navy-400">
           <Filter className="h-3.5 w-3.5" />
         </div>
-        {(['All', 'Published', 'Draft', 'In Review', 'Scheduled', 'Archived'] as const).map(s => (
+        {(['All', 'Published', 'Draft', 'In Review', 'Approved', 'Scheduled', 'Archived'] as const).map(s => (
           <button key={s} type="button" onClick={() => setStatusFilter(s)}
             className={`rounded-full px-3 py-1 text-xs font-semibold border transition-all ${statusFilter === s ? 'bg-brand text-white border-brand' : 'bg-white text-navy-500 border-navy-100 hover:border-brand'}`}>
             {s}
@@ -98,7 +99,8 @@ export function Library({ items, onNew, onEdit, onPreview, onDelete }: LibraryPr
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <span className="rounded-full bg-navy-50 px-2 py-0.5 text-[10px] font-bold uppercase text-navy-500">{item.contentType}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_COLORS[item.publishing.status]}`}>{item.publishing.status}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_COLORS[item.publishing.status] ?? STATUS_COLORS.Draft}`}>{item.publishing.status === 'In Review' ? 'Reviewed' : item.publishing.status}</span>
+                  {item.language === 'pt' && <span className="rounded-full bg-navy-50 px-2 py-0.5 text-[10px] font-bold text-navy-500">PT</span>}
                   {item.featuredOptions.featured && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">⭐ Featured</span>}
                   <span className="text-[10px] text-navy-400">{item.category}</span>
                 </div>

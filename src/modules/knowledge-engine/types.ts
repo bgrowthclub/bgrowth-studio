@@ -17,7 +17,7 @@ export type ContentType =
   | 'Planner'
   | 'Calculator';
 
-export type PublishStatus = 'Draft' | 'In Review' | 'Scheduled' | 'Published' | 'Archived';
+export type PublishStatus = 'Draft' | 'In Review' | 'Approved' | 'Scheduled' | 'Published' | 'Archived';
 export type VisibilityType = 'Public' | 'Private' | 'Unlisted';
 export type DifficultyLevel = 'Beginner' | 'Intermediate' | 'Expert';
 export type AuthorType = 'Internal' | 'Guest' | 'AI Generated' | 'Verified';
@@ -120,5 +120,10 @@ export interface KnowledgeItem {
     scheduleDate: string;
     futureWebsiteUrl: string;
     publicationNotes: string;
+    // Release flow (Portal migration 0054), set by the server only.
+    reviewedBy?: string | null;
+    approvedBy?: string | null;
+    scheduledAt?: string | null;
+    publishedAt?: string | null;
   };
 }
