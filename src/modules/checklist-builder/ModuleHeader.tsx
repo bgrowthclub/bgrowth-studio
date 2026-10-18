@@ -15,15 +15,14 @@ export function ModuleHeader({ title, subtitle, onBack, backLabel = 'Back', acti
   return (
     <div
       className={cn(
-        // Stacked (title row, then actions row) below sm so a wide actions
-        // slot (e.g. two labeled buttons) never squeezes the title or
-        // overflows the viewport on mobile; sm+ restores the original
-        // single-row layout unchanged.
-        'flex flex-col gap-3 border-b border-navy-100 bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6',
+        // One row when everything fits; otherwise the actions wrap below the
+        // title, so a wide toolbar (e.g. the Checklist Builder's) never
+        // squeezes the back button and title out of view.
+        'flex flex-wrap items-center justify-between gap-3 border-b border-navy-100 bg-white px-4 py-3.5 sm:gap-4 sm:px-6',
         className
       )}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 shrink-0 items-center gap-3">
         {onBack && (
           <button
             type="button"
@@ -39,7 +38,7 @@ export function ModuleHeader({ title, subtitle, onBack, backLabel = 'Back', acti
           {subtitle && <p className="truncate text-xs text-navy-400">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
