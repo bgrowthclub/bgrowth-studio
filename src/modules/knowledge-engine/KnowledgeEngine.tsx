@@ -104,11 +104,12 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
   // "Import from Wix": the old blog's posts become Drafts (nothing published).
   const handleWixImport = async () => {
     if (wixImport && !wixImport.finished) return;
-    if (!window.confirm(`Import the ${WIX_POST_COUNT} Wix blog posts as Drafts? Posts already here (same address) are skipped, and nothing is published.`)) return;
+    if (!window.confirm(`Import the ${WIX_POST_COUNT} Wix blog posts (published ones and Wix drafts) as Drafts? Posts already here (same address) are skipped, and nothing is published.`)) return;
     setWixImport({ done: 0, total: 0, current: 'Starting…', failed: [], finished: false });
     try {
-      const { progress, created } = await importWixPosts(items, (p) => setWixImport({ ...p, finished: false }));
-      setItems((prev) => [...created, ...prev]);
+      const { progress, created, updated } = await importWixPosts(items, (p) => setWixImport({ ...p, finished: false }));
+      const byId = new Map(updated.map((u) => [u.id, u]));
+      setItems((prev) => [...created, ...prev.map((i) => byId.get(i.id) ?? i)]);
       setWixImport({ ...progress, finished: true });
     } catch (err) {
       setWixImport({ done: 0, total: 0, current: '', failed: [{ name: 'Import', error: err instanceof Error ? err.message : 'Failed' }], finished: true });
@@ -259,7 +260,7 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
                     <>
                       {wixImport.total === 0 && !wixImport.failed.length
                         ? 'All Wix posts are already here — nothing to import.'
-                        : `Imported ${wixImport.done - wixImport.failed.length} of ${wixImport.total} Wix posts as Drafts.`}
+                        : `Imported or updated ${wixImport.done - wixImport.failed.length} of ${wixImport.total} Wix posts as Drafts.`}
                       {wixImport.failed.map((f) => (
                         <p key={f.name} className="mt-1 font-normal">Not imported: {f.name} — {f.error}</p>
                       ))}
