@@ -503,7 +503,7 @@ export function TemplateBuilderScreen({ ownerEmail, onBack, initialDraft }: Temp
         onBack={onBack}
         backLabel="Templates"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SecondaryButton size="sm" onClick={() => setShowPreview((v) => !v)}>
               {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               <span className="hidden sm:inline">{showPreview ? 'Hide preview' : 'Preview'}</span>
