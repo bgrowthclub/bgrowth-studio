@@ -1,9 +1,10 @@
 import { copyWixImage } from '../downloads/api';
-import { createKnowledgeItem } from './api/knowledgeEngineClient';
+import { createKnowledgeItem, updateKnowledgeItem } from './api/knowledgeEngineClient';
 import type { ContentBlock, KnowledgeItem } from './types';
 import type { WixPost } from './wixPosts';
 
-export const WIX_POST_COUNT = 89;
+// 89 published on Wix + 3 drafts never published there.
+export const WIX_POST_COUNT = 92;
 
 export interface WixPostImportProgress {
   done: number;
@@ -13,6 +14,7 @@ export interface WixPostImportProgress {
 }
 
 const WIX_NOTE = 'Imported from Wix';
+const EDITED_NOTE = 'Content replaced with the edited Wix version';
 
 // Wix images are copied to the Studio's public bucket so they keep working
 // after the Wix site closes; if a copy fails the Wix address is kept.
@@ -21,7 +23,7 @@ async function copy(url: string) {
   return copyWixImage(url).catch(() => url);
 }
 
-async function toBlocks(post: WixPost): Promise<ContentBlock[]> {
+async function toBlocks(post: Pick<WixPost, 'b'>): Promise<ContentBlock[]> {
   const blocks: ContentBlock[] = [];
   let n = 0;
   for (const [kind, a, b] of post.b) {
@@ -70,10 +72,13 @@ async function toItem(post: WixPost): Promise<Omit<KnowledgeItem, 'id' | 'lastUp
       slug: post.s,
       status: 'Draft',
       visibility: 'Public',
-      publishDate: post.d.slice(0, 10),
+      // A Wix draft was never published: it gets its date when published here.
+      publishDate: post.draft ? '' : post.d.slice(0, 10),
       scheduleDate: '',
       futureWebsiteUrl: '',
-      publicationNotes: `${WIX_NOTE} (post ${post.id}, first published ${post.d.slice(0, 10)}).`,
+      publicationNotes: post.draft
+        ? `${WIX_NOTE} (draft ${post.id}, never published on Wix, last edited ${post.d.slice(0, 10)}).`
+        : `${WIX_NOTE} (post ${post.id}, first published ${post.d.slice(0, 10)}).`,
     },
   };
 }
@@ -86,12 +91,38 @@ async function toItem(post: WixPost): Promise<Omit<KnowledgeItem, 'id' | 'lastUp
 export async function importWixPosts(
   existing: KnowledgeItem[],
   onProgress: (p: WixPostImportProgress) => void,
-): Promise<{ progress: WixPostImportProgress; created: KnowledgeItem[] }> {
-  const { WIX_POSTS } = await import('./wixPosts');
+): Promise<{ progress: WixPostImportProgress; created: KnowledgeItem[]; updated: KnowledgeItem[] }> {
+  const { WIX_POSTS, WIX_POST_UPDATES } = await import('./wixPosts');
   const taken = new Set(existing.map((i) => i.slug).filter(Boolean));
   const todo = WIX_POSTS.filter((p) => !taken.has(p.s));
-  const progress: WixPostImportProgress = { done: 0, total: todo.length, current: '', failed: [] };
+  // Edited Wix versions replace an imported draft nobody has touched yet.
+  const toUpdate = WIX_POST_UPDATES.map((u) => ({ u, item: existing.find((i) => i.slug === u.s) })).filter(
+    (x): x is { u: (typeof WIX_POST_UPDATES)[number]; item: KnowledgeItem } =>
+      !!x.item &&
+      x.item.publishing.status === 'Draft' &&
+      x.item.publishing.publicationNotes.includes(WIX_NOTE) &&
+      !x.item.publishing.publicationNotes.includes(EDITED_NOTE),
+  );
+  const progress: WixPostImportProgress = { done: 0, total: todo.length + toUpdate.length, current: '', failed: [] };
   const created: KnowledgeItem[] = [];
+  const updated: KnowledgeItem[] = [];
+  for (const { u, item } of toUpdate) {
+    progress.current = item.title;
+    onProgress({ ...progress });
+    try {
+      updated.push(
+        await updateKnowledgeItem({
+          ...item,
+          blocks: await toBlocks(u),
+          publishing: { ...item.publishing, publicationNotes: `${item.publishing.publicationNotes} ${EDITED_NOTE}.` },
+        }),
+      );
+    } catch (err) {
+      progress.failed.push({ name: item.title, error: err instanceof Error ? err.message : 'Failed' });
+    }
+    progress.done += 1;
+    onProgress({ ...progress });
+  }
   for (const post of todo) {
     progress.current = post.t;
     onProgress({ ...progress });
@@ -104,5 +135,5 @@ export async function importWixPosts(
     onProgress({ ...progress });
   }
   progress.current = '';
-  return { progress, created };
+  return { progress, created, updated };
 }
