@@ -113,6 +113,8 @@ export function fromKnowledgeItemBody(body) {
     scheduleDate: typeof publishing.scheduleDate === 'string' ? publishing.scheduleDate : '',
     futureWebsiteUrl: typeof publishing.futureWebsiteUrl === 'string' ? publishing.futureWebsiteUrl : '',
     publicationNotes: typeof publishing.publicationNotes === 'string' ? publishing.publicationNotes : '',
+    // Who reads it on the site (Portal migration 0055): 'everyone' or 'members' (default).
+    access: publishing.access === 'everyone' ? 'everyone' : 'members',
   };
   return row;
 }

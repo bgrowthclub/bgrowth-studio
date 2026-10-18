@@ -578,6 +578,13 @@ export function AssetEditor({ item, onSave, onSaveInPlace, onReleaseChanged, onP
               <p className="text-sm font-bold text-navy-800">Publishing Settings</p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
+                  <label className={labelCls}>Who can read it</label>
+                  <select className={inputCls} value={draft.publishing.access ?? 'members'} onChange={e => setPublishing('access', e.target.value)}>
+                    <option value="members">Members — visitors see the start and are asked to sign up</option>
+                    <option value="everyone">Everyone — the whole article is open</option>
+                  </select>
+                </div>
+                <div>
                   <label className={labelCls}>Visibility</label>
                   <select className={inputCls} value={draft.publishing.visibility} onChange={e => setPublishing('visibility', e.target.value as VisibilityType)}>
                     <option value="Public">Public</option>
