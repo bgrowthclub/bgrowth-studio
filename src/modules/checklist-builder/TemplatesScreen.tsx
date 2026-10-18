@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { publicTemplateUrl } from '../../lib/embed';
 import { LayoutList, Plus, Pencil, Trash2, ChevronRight, Link, Check, Upload, Download, Search } from 'lucide-react';
 import { ModuleHeader } from './ModuleHeader';
 import { EmptyState } from './EmptyState';
@@ -150,7 +151,7 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
 
   const handleCopyLink = (e: React.MouseEvent, templateId: string) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/?template=${templateId}`;
+    const url = publicTemplateUrl(templateId);
     navigator.clipboard.writeText(url).then(() => {
       setCopiedId(templateId);
       setTimeout(() => setCopiedId(null), 2000);
@@ -341,7 +342,7 @@ const handleExportJson = async (e: React.MouseEvent, t: ChecklistTemplate) => {
                 {copiedId === t.templateId && (
                   <div className="mt-1.5 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
                     <Check className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate font-mono">{window.location.origin}/?template={t.templateId}</span>
+                    <span className="truncate font-mono">{publicTemplateUrl(t.templateId)}</span>
                   </div>
                 )}
               </li>

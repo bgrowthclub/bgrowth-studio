@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { publicCalcUrl } from '../../lib/embed';
 import { Save, Printer, Download, History, Plus, StickyNote, Calculator, TrendingUp, DollarSign, Clock, BarChart2, Star, Trash2, ChevronRight, UploadCloud } from 'lucide-react';
 import { CalcField } from './components/CalcField';
 import { ResultsPanel } from './components/ResultsPanel';
@@ -30,7 +31,7 @@ import { cn } from '../../lib/utils';
 // -----------------------------------------------------------------------
 // Available calculators (add new configs here)
 // -----------------------------------------------------------------------
-const CALCULATORS: CalculatorConfig[] = [
+export const CALCULATORS: CalculatorConfig[] = [
   cleaningPricingCalc,
   mileageDeductionCalc,
   roiCalc,
@@ -370,7 +371,7 @@ export function CalculatorEngine({ ownerEmail, initialCalcId }: CalculatorEngine
   }, []);
 
   const handleCopyLink = (productId: string) => {
-    const url = `${window.location.origin}/?calc=${productId}`;
+    const url = publicCalcUrl(productId);
     navigator.clipboard.writeText(url).then(() => {
       setCopiedId(productId);
       setTimeout(() => setCopiedId(null), 2000);

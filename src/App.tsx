@@ -5,7 +5,7 @@ import { StudioHome } from './studio/StudioHome';
 import { StudioNav } from './studio/StudioNav';
 import { ChecklistBuilderApp } from './modules/checklist-builder/ChecklistBuilderApp';
 import { PlannerEngine } from './modules/planner-engine/PlannerEngine';
-import { CalculatorEngine } from './modules/calculator-engine/CalculatorEngine';
+import { CalculatorEngine, CALCULATORS } from './modules/calculator-engine/CalculatorEngine';
 import { AIBuilder } from './modules/ai-builder/AIBuilder';
 import { ProductEngine } from './modules/product-engine/ProductEngine';
 import { KnowledgeEngine } from './modules/knowledge-engine/KnowledgeEngine';
@@ -29,6 +29,7 @@ import { loadFormData, saveFormData, clearFormData, loadOpenSection, saveOpenSec
 import { downloadElementAsPdf } from './lib/pdf';
 import { api_getTemplate } from './modules/checklist-builder/api';
 import { decompressString } from './lib/compress';
+import { notifyEmbedParent } from './lib/embed';
 import type { ChecklistConfig, ChecklistData } from './engine/types';
 
 type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine' | 'access-management' | 'social-post-creator' | 'file-library' | 'downloads';
@@ -70,6 +71,10 @@ function PublicFill({ templateId }: { templateId: string }) {
       .catch(() => setError('Checklist not found or unavailable.'))
       .finally(() => setLoading(false));
   }, [templateId]);
+
+  useEffect(() => {
+    if (!loading) notifyEmbedParent(error || !config ? 'not-found' : 'ready');
+  }, [loading, error, config]);
 
   if (loading) return (
     <div className="flex h-screen items-center justify-center bg-[#f4f6fb]">
@@ -229,9 +234,19 @@ function PublicFillInner({ config, storageId }: { config: ChecklistConfig; stora
 // Public Calculator Fill — renders a calculator from ?calc=ID
 // -----------------------------------------------------------------------
 function PublicCalcFill({ calcId }: { calcId: string }) {
+  const found = CALCULATORS.some((c) => c.productId === calcId);
   useEffect(() => {
     document.title = 'Calculator | BGrowth';
-  }, [calcId]);
+    notifyEmbedParent(found ? 'ready' : 'not-found');
+  }, [calcId, found]);
+
+  // An unknown id never shows Studio's calculator list to a visitor.
+  if (!found) return (
+    <div className="flex h-screen flex-col items-center justify-center gap-3 bg-[#f4f6fb] text-center">
+      <p className="text-lg font-bold text-navy-800">Calculator not found</p>
+      <p className="text-sm text-navy-400">This link may be invalid or the calculator is no longer available.</p>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} className="font-sans bg-[#f4f6fb]">
@@ -297,7 +312,7 @@ function StudioApp({ ownerEmail }: { ownerEmail: string }) {
 
   if (plannerId) return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} className="font-sans">
-      <PlannerEngine ownerEmail={params.get('owner') || ownerEmail} initialPlannerId={plannerId} />
+      <PlannerEngine ownerEmail={params.get('owner') || ownerEmail} initialPlannerId={plannerId} isPublic />
     </div>
   );
 
