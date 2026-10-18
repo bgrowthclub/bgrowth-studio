@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, LayoutList, Users, Menu, X, ArrowLeft } from 'lucide-react';
+import { BookOpen, LayoutList, Users, Menu, X, ArrowLeft, Download } from 'lucide-react';
 import { Dashboard } from './Dashboard';
 import { Library } from './Library';
 import { AssetEditor } from './AssetEditor';
@@ -9,6 +9,7 @@ import { Toast } from '../../components/Toast';
 import type { KnowledgeItem, ContentType } from './types';
 import { MOCK_AUTHORS } from './mockData';
 import { createKnowledgeItem, deleteKnowledgeItem, fetchKnowledgeItems, updateKnowledgeItem } from './api/knowledgeEngineClient';
+import { importWixPosts, WIX_POST_COUNT, type WixPostImportProgress } from './wixImport';
 
 type Tab = 'dashboard' | 'library' | 'authors';
 type View = { mode: 'list' } | { mode: 'edit'; id: string } | { mode: 'preview'; id: string };
@@ -53,6 +54,7 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [view, setView] = useState<View>({ mode: 'list' });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [wixImport, setWixImport] = useState<(WixPostImportProgress & { finished: boolean }) | null>(null);
 
   const showToast = (message: string) => {
     setToast({ message, visible: true });
@@ -96,6 +98,20 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
       setSaveError(err instanceof Error ? err.message : 'Failed to save. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // "Import from Wix": the old blog's posts become Drafts (nothing published).
+  const handleWixImport = async () => {
+    if (wixImport && !wixImport.finished) return;
+    if (!window.confirm(`Import the ${WIX_POST_COUNT} Wix blog posts as Drafts? Posts already here (same address) are skipped, and nothing is published.`)) return;
+    setWixImport({ done: 0, total: 0, current: 'Starting…', failed: [], finished: false });
+    try {
+      const { progress, created } = await importWixPosts(items, (p) => setWixImport({ ...p, finished: false }));
+      setItems((prev) => [...created, ...prev]);
+      setWixImport({ ...progress, finished: true });
+    } catch (err) {
+      setWixImport({ done: 0, total: 0, current: '', failed: [{ name: 'Import', error: err instanceof Error ? err.message : 'Failed' }], finished: true });
     }
   };
 
@@ -189,10 +205,16 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
             </div>
           </div>
           {view.mode === 'list' && tab === 'library' && (
-            <button type="button" onClick={() => handleNew()}
-              className="flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white hover:bg-brand-600">
-              + New Asset
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => void handleWixImport()} disabled={!!wixImport && !wixImport.finished}
+                className="flex items-center gap-1.5 rounded-xl border border-navy-100 bg-white px-3 py-2 text-xs font-bold text-navy-600 hover:border-brand hover:text-brand-700 disabled:opacity-50">
+                <Download className="h-3.5 w-3.5" /> Import from Wix
+              </button>
+              <button type="button" onClick={() => handleNew()}
+                className="flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white hover:bg-brand-600">
+                + New Asset
+              </button>
+            </div>
           )}
         </header>
 
@@ -216,6 +238,23 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
             <Preview item={activeItem} />
           ) : (
             <div className="p-4 sm:p-6">
+              {wixImport && (
+                <div className={`mb-4 rounded-xl border px-4 py-3 text-xs font-semibold ${wixImport.finished ? (wixImport.failed.length ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800') : 'border-navy-100 bg-white text-navy-600'}`}>
+                  {wixImport.finished ? (
+                    <>
+                      {wixImport.total === 0 && !wixImport.failed.length
+                        ? 'All Wix posts are already here — nothing to import.'
+                        : `Imported ${wixImport.done - wixImport.failed.length} of ${wixImport.total} Wix posts as Drafts.`}
+                      {wixImport.failed.map((f) => (
+                        <p key={f.name} className="mt-1 font-normal">Not imported: {f.name} — {f.error}</p>
+                      ))}
+                      <button type="button" onClick={() => setWixImport(null)} className="ml-2 underline">Close</button>
+                    </>
+                  ) : (
+                    <>Importing from Wix… {wixImport.done}/{wixImport.total || WIX_POST_COUNT} — {wixImport.current}</>
+                  )}
+                </div>
+              )}
               {isLoadingItems ? (
                 <div className="rounded-2xl border border-dashed border-navy-200 py-16 text-center">
                   <p className="text-sm font-semibold text-navy-500">Loading knowledge assets…</p>
