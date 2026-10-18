@@ -83,6 +83,11 @@ export function toKnowledgeItem(row) {
     ...(row.publishing ?? {}),
     slug: row.slug ?? '',
     status: row.status ?? 'Draft',
+    // Release flow (Portal migration 0054) — read-only for the editor.
+    reviewedBy: row.reviewed_by ?? null,
+    approvedBy: row.approved_by ?? null,
+    scheduledAt: row.scheduled_publish_at ?? null,
+    publishedAt: row.published_at ?? null,
   };
   return item;
 }
@@ -112,6 +117,83 @@ export function fromKnowledgeItemBody(body) {
   return row;
 }
 
+const REVIEW_STAGES = new Set(['Draft', 'In Review', 'Approved']);
+
+function missingForReview(row) {
+  const missing = [];
+  if (!String(row.title ?? '').trim()) missing.push('title');
+  if (!String(row.slug ?? '').trim()) missing.push('slug');
+  if (!String(row.excerpt ?? '').trim()) missing.push('excerpt');
+  if (!row.featured_image) missing.push('featured image');
+  if (!Array.isArray(row.blocks) || row.blocks.length === 0) missing.push('content');
+  return missing;
+}
+
+/**
+ * Release flow (Portal migration 0054), same steps as products:
+ *   Draft → In Review ("reviewed") → Approved → Scheduled → Published
+ *   POST ?release=1 { id, action:'stage', stage:'Draft'|'In Review'|'Approved' }
+ *   POST ?release=1 { id, action:'schedule', at: ISO | null }   (approved only)
+ *   POST ?release=1 { id, action:'publish-now' }                 (approved only)
+ *   POST ?release=1 { id, action:'unpublish' }                   (published → Archived)
+ * The Website's daily job publishes scheduled articles
+ * (portal.publish_scheduled_knowledge()).
+ */
+async function handleRelease(req, res, supabase, admin) {
+  const body = req.body ?? {};
+  const id = String(body.id ?? '');
+  if (!id) return res.status(400).json({ error: 'id is required.' });
+  const items = () => supabase.schema('knowledge_engine').from('items');
+  const { data: row, error } = await items().select('*').eq('id', id).maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  if (!row) return res.status(404).json({ error: 'Knowledge item not found.' });
+
+  const now = new Date().toISOString();
+  const approved = row.status === 'Approved' || row.status === 'Scheduled';
+  let patch;
+
+  if (body.action === 'stage') {
+    const stage = String(body.stage ?? '');
+    if (!REVIEW_STAGES.has(stage)) return res.status(400).json({ error: 'Unknown stage.' });
+    if (row.status === 'Published') return res.status(409).json({ error: 'Unpublish it first.' });
+    if (stage === 'In Review') {
+      const missing = missingForReview(row);
+      if (missing.length) return res.status(422).json({ error: `Missing: ${missing.join(', ')}.` });
+      patch = { status: stage, reviewed_by: admin.email, reviewed_at: now, approved_by: null, approved_at: null, scheduled_publish_at: null };
+    } else if (stage === 'Approved') {
+      if (row.status !== 'In Review') return res.status(409).json({ error: 'Mark it as reviewed first.' });
+      patch = { status: stage, approved_by: admin.email, approved_at: now };
+    } else {
+      patch = { status: 'Draft', reviewed_by: null, reviewed_at: null, approved_by: null, approved_at: null, scheduled_publish_at: null };
+    }
+  } else if (body.action === 'schedule') {
+    if (!approved) return res.status(409).json({ error: 'Only approved articles can be scheduled.' });
+    let at = null;
+    if (body.at) {
+      const d = new Date(String(body.at));
+      if (Number.isNaN(d.getTime())) return res.status(400).json({ error: 'Pick a valid date.' });
+      at = d.toISOString();
+    }
+    patch = { status: at ? 'Scheduled' : 'Approved', scheduled_publish_at: at };
+  } else if (body.action === 'publish-now') {
+    if (!approved) return res.status(409).json({ error: 'Approve it before publishing.' });
+    patch = { status: 'Published', published_at: now, scheduled_publish_at: null };
+  } else if (body.action === 'unpublish') {
+    if (row.status !== 'Published') return res.status(409).json({ error: 'It is not published.' });
+    patch = { status: 'Archived' };
+  } else {
+    return res.status(400).json({ error: 'Unknown action.' });
+  }
+
+  patch.updated_at = now;
+  const { data, error: updateError } = await items().update(patch).eq('id', id).select('*').single();
+  if (updateError) {
+    if (/column/i.test(updateError.message)) return res.status(500).json({ error: 'Run the database update (Portal migration 0054) first.' });
+    return res.status(500).json({ error: updateError.message });
+  }
+  return res.json({ item: toKnowledgeItem(data) });
+}
+
 /** Postgres 23505 (unique_violation) on the slug index -> a clear, actionable error instead of a raw DB message. */
 function isSlugConflict(error) {
   return error?.code === '23505';
@@ -122,9 +204,12 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (!(await requireAdmin(req))) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const supabase = getSupabaseAdmin();
+
+  if (req.method === 'POST' && req.query.release) return handleRelease(req, res, supabase, admin);
 
   if (req.method === 'GET') {
     const { id } = req.query;
@@ -142,6 +227,8 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     const row = fromKnowledgeItemBody(req.body);
+    // A new article always starts as a Draft — the stage only changes through the release flow.
+    row.status = 'Draft';
     const { data, error } = await supabase.schema('knowledge_engine').from('items').insert(row).select('*').single();
     if (error) {
       if (isSlugConflict(error)) return res.status(409).json({ error: 'This slug is already in use by another knowledge asset.' });
@@ -155,6 +242,8 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id is required.' });
 
     const row = fromKnowledgeItemBody(req.body);
+    // Saving never changes the stage (release flow above).
+    delete row.status;
     row.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase.schema('knowledge_engine').from('items').update(row).eq('id', id).select('*').maybeSingle();

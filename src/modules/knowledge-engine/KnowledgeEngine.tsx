@@ -115,6 +115,19 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
     }
   };
 
+  // Saves without leaving the editor — a release step saves the current changes first.
+  const handleSaveInPlace = async (updated: KnowledgeItem) => {
+    setSaveError(null);
+    try {
+      const saved = await updateKnowledgeItem(updated);
+      setItems((prev) => prev.map((i) => (i.id === saved.id ? saved : i)));
+      return true;
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save. Please try again.');
+      return false;
+    }
+  };
+
   const handleDelete = (id: string) => {
     setDeleteTarget(id);
   };
@@ -230,6 +243,8 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
               <AssetEditor
                 item={activeItem}
                 onSave={handleSave}
+                onSaveInPlace={handleSaveInPlace}
+                onReleaseChanged={(saved) => setItems((prev) => prev.map((i) => (i.id === saved.id ? saved : i)))}
                 onPreview={() => setView({ mode: 'preview', id: activeItem.id })}
                 onBack={() => setView({ mode: 'list' })}
               />

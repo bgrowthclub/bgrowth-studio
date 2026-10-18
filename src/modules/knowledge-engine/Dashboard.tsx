@@ -24,7 +24,7 @@ export function Dashboard({ items, onNew, onSelectTab, onEdit }: DashboardProps)
   const totalCount = items.length;
   const publishedCount = items.filter(i => i.publishing.status === 'Published').length;
   const draftCount = items.filter(i => i.publishing.status === 'Draft' || i.publishing.status === 'In Review').length;
-  const scheduledCount = items.filter(i => i.publishing.status === 'Scheduled').length;
+  const scheduledCount = items.filter(i => i.publishing.status === 'Scheduled' || i.publishing.status === 'Approved').length;
 
   const typeBreakdown = items.reduce((acc: Record<string, number>, curr) => {
     acc[curr.contentType] = (acc[curr.contentType] || 0) + 1;
@@ -65,7 +65,7 @@ export function Dashboard({ items, onNew, onSelectTab, onEdit }: DashboardProps)
           { label: 'Total Resources', value: totalCount, icon: BookOpen, color: 'bg-blue-50 text-blue-600' },
           { label: 'Published', value: publishedCount, icon: CheckCircle, color: 'bg-emerald-50 text-emerald-600' },
           { label: 'Drafts & Reviews', value: draftCount, icon: Clock, color: 'bg-amber-50 text-amber-600' },
-          { label: 'Scheduled', value: scheduledCount, icon: Users, color: 'bg-purple-50 text-purple-600' },
+          { label: 'Approved / scheduled', value: scheduledCount, icon: Users, color: 'bg-purple-50 text-purple-600' },
         ].map((stat) => {
           const Icon = stat.icon;
           return (

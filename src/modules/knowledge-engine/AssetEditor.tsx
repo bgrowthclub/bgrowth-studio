@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Plus, Trash2, Save, Eye, ArrowLeft } from 'lucide-react';
-import type { KnowledgeItem, ContentType, DifficultyLevel, PublishStatus, VisibilityType, ContentBlock } from './types';
+import type { KnowledgeItem, ContentType, DifficultyLevel, VisibilityType, ContentBlock } from './types';
+import { KnowledgeReleasePanel } from './KnowledgeReleasePanel';
 import { MOCK_AUTHORS, CATEGORIES, INDUSTRIES, TAGS } from './mockData';
 
 const CONTENT_TYPES: ContentType[] = [
@@ -51,13 +52,22 @@ function defaultBlockData(type: string): any {
 interface AssetEditorProps {
   item: KnowledgeItem;
   onSave: (item: KnowledgeItem) => void;
+  /** Saves without leaving the editor (used before a release step). */
+  onSaveInPlace: (item: KnowledgeItem) => Promise<boolean>;
+  onReleaseChanged: (item: KnowledgeItem) => void;
   onPreview: () => void;
   onBack: () => void;
 }
 
 type EditorTab = 'general' | 'content' | 'attachments' | 'related' | 'featured' | 'seo' | 'publishing';
 
-export function AssetEditor({ item, onSave, onPreview, onBack }: AssetEditorProps) {
+// The release fields come from the server (release flow), not from the form.
+function pickRelease(i: KnowledgeItem) {
+  const { status, reviewedBy, approvedBy, scheduledAt, publishedAt } = i.publishing;
+  return { status, reviewedBy, approvedBy, scheduledAt, publishedAt };
+}
+
+export function AssetEditor({ item, onSave, onSaveInPlace, onReleaseChanged, onPreview, onBack }: AssetEditorProps) {
   const [draft, setDraft] = useState<KnowledgeItem>({ ...item });
   const [activeTab, setActiveTab] = useState<EditorTab>('general');
   const [tagInput, setTagInput] = useState('');
@@ -112,6 +122,9 @@ export function AssetEditor({ item, onSave, onPreview, onBack }: AssetEditorProp
           </button>
           <span className="text-navy-200">/</span>
           <span className="text-sm font-semibold text-navy-800 truncate max-w-[200px]">{draft.title || 'Untitled'}</span>
+          <button type="button" onClick={() => setActiveTab('publishing')} className="rounded-full bg-navy-50 px-2 py-0.5 text-[10px] font-bold text-navy-500 hover:text-brand">
+            {draft.publishing.status === 'In Review' ? 'Reviewed' : draft.publishing.status}
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={onPreview} className="flex items-center gap-1.5 rounded-lg border border-navy-100 bg-white px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50">
@@ -554,18 +567,16 @@ export function AssetEditor({ item, onSave, onPreview, onBack }: AssetEditorProp
           {/* PUBLISHING TAB */}
           {activeTab === 'publishing' && (
             <div className="rounded-2xl border border-navy-100 bg-white p-5 shadow-card space-y-4">
+              <KnowledgeReleasePanel
+                item={draft}
+                saveFirst={() => onSaveInPlace(draft)}
+                onChanged={(saved) => {
+                  setDraft(d => ({ ...d, publishing: { ...d.publishing, ...pickRelease(saved) } }));
+                  onReleaseChanged(saved);
+                }}
+              />
               <p className="text-sm font-bold text-navy-800">Publishing Settings</p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelCls}>Status</label>
-                  <select className={inputCls} value={draft.publishing.status} onChange={e => setPublishing('status', e.target.value as PublishStatus)}>
-                    <option value="Draft">Draft</option>
-                    <option value="In Review">In Review</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="Published">Published</option>
-                    <option value="Archived">Archived</option>
-                  </select>
-                </div>
                 <div>
                   <label className={labelCls}>Visibility</label>
                   <select className={inputCls} value={draft.publishing.visibility} onChange={e => setPublishing('visibility', e.target.value as VisibilityType)}>
@@ -575,12 +586,8 @@ export function AssetEditor({ item, onSave, onPreview, onBack }: AssetEditorProp
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Publish Date</label>
+                  <label className={labelCls}>Original date (shown on the article)</label>
                   <input type="date" className={inputCls} value={draft.publishing.publishDate} onChange={e => setPublishing('publishDate', e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelCls}>Schedule Date</label>
-                  <input type="datetime-local" className={inputCls} value={draft.publishing.scheduleDate} onChange={e => setPublishing('scheduleDate', e.target.value)} />
                 </div>
               </div>
               <div>
@@ -592,21 +599,6 @@ export function AssetEditor({ item, onSave, onPreview, onBack }: AssetEditorProp
                 <textarea className={inputCls} rows={3} value={draft.publishing.publicationNotes} onChange={e => setPublishing('publicationNotes', e.target.value)} placeholder="Internal notes about this publication..." />
               </div>
 
-              {/* Status badges */}
-              <div className="flex flex-wrap gap-2 pt-2">
-                {(['Draft', 'In Review', 'Scheduled', 'Published', 'Archived'] as PublishStatus[]).map(s => (
-                  <button key={s} type="button" onClick={() => setPublishing('status', s)}
-                    className={`rounded-full px-3 py-1 text-xs font-bold border transition-all ${draft.publishing.status === s
-                      ? s === 'Published' ? 'bg-emerald-600 text-white border-emerald-600'
-                        : s === 'Draft' ? 'bg-amber-500 text-white border-amber-500'
-                        : s === 'Archived' ? 'bg-slate-500 text-white border-slate-500'
-                        : 'bg-brand text-white border-brand'
-                      : 'bg-white text-navy-500 border-navy-100 hover:border-brand hover:text-brand'
-                    }`}>
-                    {s}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 

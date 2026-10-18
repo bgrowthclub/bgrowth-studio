@@ -33,6 +33,23 @@ export async function updateKnowledgeItem(item: KnowledgeItem): Promise<Knowledg
   return updated;
 }
 
+export type KnowledgeReleaseAction =
+  | { action: 'stage'; stage: 'Draft' | 'In Review' | 'Approved' }
+  | { action: 'schedule'; at: string | null }
+  | { action: 'publish-now' }
+  | { action: 'unpublish' };
+
+/** Release flow (Portal migration 0054): move an article between stages. */
+export async function knowledgeRelease(id: string, body: KnowledgeReleaseAction): Promise<KnowledgeItem> {
+  const res = await apiFetch('/api/knowledge-engine?release=1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ...body }),
+  });
+  const { item } = await parseOrThrow<{ item: KnowledgeItem }>(res);
+  return item;
+}
+
 export async function deleteKnowledgeItem(id: string): Promise<void> {
   const res = await apiFetch(`/api/knowledge-engine?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 204) {
