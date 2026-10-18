@@ -120,8 +120,8 @@ export interface KnowledgeItem {
     scheduleDate: string;
     futureWebsiteUrl: string;
     publicationNotes: string;
-    /** Who reads it on bgrowth.app: everyone, or signed-in members (default; visitors see the start). */
-    access?: 'everyone' | 'members';
+    /** Who reads it on bgrowth.app: everyone, signed-in members (default; visitors see the start), or `plan:<slug>` — members on that plan or a higher one. */
+    access?: 'everyone' | 'members' | `plan:${string}`;
     // Release flow (Portal migration 0054), set by the server only.
     reviewedBy?: string | null;
     approvedBy?: string | null;

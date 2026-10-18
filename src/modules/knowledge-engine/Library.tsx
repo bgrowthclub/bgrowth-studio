@@ -101,6 +101,7 @@ export function Library({ items, onNew, onEdit, onPreview, onDelete }: LibraryPr
                   <span className="rounded-full bg-navy-50 px-2 py-0.5 text-[10px] font-bold uppercase text-navy-500">{item.contentType}</span>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_COLORS[item.publishing.status] ?? STATUS_COLORS.Draft}`}>{item.publishing.status === 'In Review' ? 'Reviewed' : item.publishing.status}</span>
                   {item.publishing.access === 'everyone' && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Open to all</span>}
+                  {item.publishing.access?.startsWith('plan:') && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700">{item.publishing.access.slice(5)} plan+</span>}
                   {item.language === 'pt' && <span className="rounded-full bg-navy-50 px-2 py-0.5 text-[10px] font-bold text-navy-500">PT</span>}
                   {item.featuredOptions.featured && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">⭐ Featured</span>}
                   <span className="text-[10px] text-navy-400">{item.category}</span>

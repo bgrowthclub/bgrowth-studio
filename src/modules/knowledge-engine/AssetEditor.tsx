@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSitePlans } from './useSitePlans';
 import { X, Plus, Trash2, Save, Eye, ArrowLeft } from 'lucide-react';
 import type { KnowledgeItem, ContentType, DifficultyLevel, VisibilityType, ContentBlock } from './types';
 import { KnowledgeReleasePanel } from './KnowledgeReleasePanel';
@@ -69,6 +70,7 @@ function pickRelease(i: KnowledgeItem) {
 
 export function AssetEditor({ item, onSave, onSaveInPlace, onReleaseChanged, onPreview, onBack }: AssetEditorProps) {
   const [draft, setDraft] = useState<KnowledgeItem>({ ...item });
+  const sitePlans = useSitePlans();
   const [activeTab, setActiveTab] = useState<EditorTab>('general');
   const [tagInput, setTagInput] = useState('');
 
@@ -582,6 +584,9 @@ export function AssetEditor({ item, onSave, onSaveInPlace, onReleaseChanged, onP
                   <select className={inputCls} value={draft.publishing.access ?? 'members'} onChange={e => setPublishing('access', e.target.value)}>
                     <option value="members">Members — visitors see the start and are asked to sign up</option>
                     <option value="everyone">Everyone — the whole article is open</option>
+                    {sitePlans.map(p => (
+                      <option key={p.slug} value={`plan:${p.slug}`}>{p.name} plan or above — others see the start and the plans</option>
+                    ))}
                   </select>
                 </div>
                 <div>
