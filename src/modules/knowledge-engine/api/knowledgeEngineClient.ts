@@ -13,6 +13,22 @@ export async function fetchKnowledgeItems(): Promise<KnowledgeItem[]> {
   return items;
 }
 
+export interface OldLink {
+  kind: string
+  id: string
+  title: string
+  status: string
+  where: string
+  url: string
+}
+
+// Places that still point at the old Wix site (read-only check).
+export async function fetchOldLinks(): Promise<OldLink[]> {
+  const res = await apiFetch('/api/knowledge-engine?check=old-links');
+  const { found } = await parseOrThrow<{ found: OldLink[] }>(res);
+  return found;
+}
+
 export async function createKnowledgeItem(item: Omit<KnowledgeItem, 'id' | 'lastUpdated'>): Promise<KnowledgeItem> {
   const res = await apiFetch('/api/knowledge-engine', {
     method: 'POST',

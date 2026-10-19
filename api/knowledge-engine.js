@@ -203,6 +203,63 @@ async function handleRelease(req, res, supabase, admin) {
   return res.json({ item: toKnowledgeItem(data) });
 }
 
+/**
+ * Old links check (Studio Sprint 108): lists every place an article or a
+ * product still points at the old Wix site — an image on Wix's servers
+ * (wixstatic.com) or a link to benterprises.biz/wix.com — so the team fixes
+ * them by hand while reviewing. Read-only.
+ *   GET ?check=old-links → { found: [{ kind, id, title, status, where, url }] }
+ * A product's metadata.wix (where it came from) is not counted.
+ */
+const OLD_HOSTS = /https?:\/\/[^\s"'<>)]*(?:wixstatic\.com|benterprises\.biz|wix\.com|wixsite\.com)[^\s"'<>)]*/gi;
+
+function oldLinksIn(value, where, out) {
+  if (typeof value === 'string') {
+    for (const m of value.matchAll(OLD_HOSTS)) out.push({ where, url: m[0] });
+  } else if (Array.isArray(value)) {
+    value.forEach((v) => oldLinksIn(v, where, out));
+  } else if (value && typeof value === 'object') {
+    for (const v of Object.values(value)) oldLinksIn(v, where, out);
+  }
+}
+
+async function handleOldLinks(res, supabase) {
+  const found = [];
+  const { data: items, error } = await supabase
+    .schema('knowledge_engine')
+    .from('items')
+    .select('id, title, status, featured_image, excerpt, seo, blocks, attachments')
+    .order('title');
+  if (error) return res.status(500).json({ error: error.message });
+  for (const it of items ?? []) {
+    const hits = [];
+    oldLinksIn(it.featured_image, 'Cover image', hits);
+    oldLinksIn(it.excerpt, 'Excerpt', hits);
+    oldLinksIn(it.seo, 'SEO / share image', hits);
+    (it.blocks ?? []).forEach((b, i) => oldLinksIn(b?.data, `Content — block ${i + 1} (${b?.type ?? 'block'})`, hits));
+    oldLinksIn(it.attachments, 'Attachments', hits);
+    hits.forEach((h) => found.push({ kind: 'article', id: it.id, title: it.title || '(untitled)', status: it.status ?? '', ...h }));
+  }
+  const { data: products, error: pError } = await supabase
+    .schema('portal')
+    .from('products')
+    .select('id, name, content_type, status, short_description, description, cover_image_url, gallery, content, metadata')
+    .order('name');
+  if (pError) return res.status(500).json({ error: pError.message });
+  for (const p of products ?? []) {
+    const hits = [];
+    oldLinksIn(p.cover_image_url, 'Cover image', hits);
+    oldLinksIn(p.short_description, 'Short description', hits);
+    oldLinksIn(p.description, 'Description', hits);
+    oldLinksIn(p.gallery, 'Gallery', hits);
+    oldLinksIn(p.content, 'Content', hits);
+    const { wix: _wix, ...meta } = p.metadata ?? {};
+    oldLinksIn(meta, 'Details', hits);
+    hits.forEach((h) => found.push({ kind: p.content_type === 'pdf' ? 'download' : p.content_type || 'product', id: p.id, title: p.name || '(untitled)', status: p.status ?? '', ...h }));
+  }
+  return res.json({ found });
+}
+
 /** Postgres 23505 (unique_violation) on the slug index -> a clear, actionable error instead of a raw DB message. */
 function isSlugConflict(error) {
   return error?.code === '23505';
@@ -219,6 +276,8 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin();
 
   if (req.method === 'POST' && req.query.release) return handleRelease(req, res, supabase, admin);
+
+  if (req.method === 'GET' && req.query.check === 'old-links') return handleOldLinks(res, supabase);
 
   if (req.method === 'GET') {
     const { id } = req.query;
