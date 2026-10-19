@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, LayoutList, Users, Menu, X, ArrowLeft, Download } from 'lucide-react';
+import { BookOpen, LayoutList, Users, Menu, X, ArrowLeft, Download, Link2Off } from 'lucide-react';
 import { Dashboard } from './Dashboard';
 import { Library } from './Library';
 import { AssetEditor } from './AssetEditor';
 import { Preview } from './Preview';
+import { OldLinksCheck } from './OldLinksCheck';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Toast } from '../../components/Toast';
 import type { KnowledgeItem, ContentType } from './types';
@@ -11,7 +12,7 @@ import { MOCK_AUTHORS } from './mockData';
 import { createKnowledgeItem, deleteKnowledgeItem, fetchKnowledgeItems, updateKnowledgeItem } from './api/knowledgeEngineClient';
 import { importWixPosts, WIX_POST_COUNT, type WixPostImportProgress } from './wixImport';
 
-type Tab = 'dashboard' | 'library' | 'authors';
+type Tab = 'dashboard' | 'library' | 'authors' | 'oldlinks';
 type View = { mode: 'list' } | { mode: 'edit'; id: string } | { mode: 'preview'; id: string };
 
 function createBlankItem(contentType: ContentType = 'Article'): Omit<KnowledgeItem, 'id' | 'lastUpdated'> {
@@ -152,6 +153,7 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
     { id: 'dashboard' as Tab, label: 'Dashboard', icon: BookOpen },
     { id: 'library' as Tab, label: 'Content Library', icon: LayoutList },
     { id: 'authors' as Tab, label: 'Authors', icon: Users },
+    { id: 'oldlinks' as Tab, label: 'Old links check', icon: Link2Off },
   ];
 
   return (
@@ -214,7 +216,7 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-brand-600">BGrowth Studio</p>
               <h1 className="text-sm font-extrabold text-navy-900">
-                {view.mode === 'edit' ? (activeItem?.title || 'New Asset') : view.mode === 'preview' ? 'Preview' : tab === 'dashboard' ? 'Knowledge Dashboard' : tab === 'library' ? 'Content Library' : 'Authors'}
+                {view.mode === 'edit' ? (activeItem?.title || 'New Asset') : view.mode === 'preview' ? 'Preview' : tab === 'dashboard' ? 'Knowledge Dashboard' : tab === 'library' ? 'Content Library' : tab === 'oldlinks' ? 'Old links check' : 'Authors'}
               </h1>
             </div>
           </div>
@@ -301,6 +303,7 @@ export function KnowledgeEngine({ ownerEmail, onHome }: KnowledgeEngineProps) {
                       onDelete={handleDelete}
                     />
                   )}
+                  {tab === 'oldlinks' && <OldLinksCheck onEditArticle={(id) => setView({ mode: 'edit', id })} />}
                   {tab === 'authors' && (
                     <div className="space-y-4">
                       <p className="text-sm font-bold text-navy-800">Authors ({MOCK_AUTHORS.length})</p>
