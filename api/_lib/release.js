@@ -36,6 +36,30 @@ function missingForReview(p) {
   return missing;
 }
 
+export const WIX_SKIPPED_KEY = 'wix_import_skipped';
+
+export async function skippedWixIds(supabase) {
+  const { data, error } = await supabase.schema('portal').from('site_settings').select('value').eq('key', WIX_SKIPPED_KEY).maybeSingle();
+  if (error) return [];
+  return Array.isArray(data?.value?.ids) ? data.value.ids.map(String) : [];
+}
+
+async function rememberSkippedWix(supabase, wixId, email) {
+  const ids = new Set(await skippedWixIds(supabase));
+  ids.add(wixId);
+  await supabase
+    .schema('portal')
+    .from('site_settings')
+    .upsert({ key: WIX_SKIPPED_KEY, value: { ids: [...ids] }, updated_at: new Date().toISOString(), updated_by: email });
+}
+
+export async function clearSkippedWix(supabase, email) {
+  await supabase
+    .schema('portal')
+    .from('site_settings')
+    .upsert({ key: WIX_SKIPPED_KEY, value: { ids: [] }, updated_at: new Date().toISOString(), updated_by: email });
+}
+
 export async function handleRelease(req, res, supabase, admin) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {};
@@ -108,8 +132,13 @@ export async function handleRelease(req, res, supabase, admin) {
     if (!inBundles.error && (inBundles.count ?? 0) > 0) {
       return res.status(409).json({ error: 'This product is part of a bundle — take it out of the bundle first.' });
     }
+    const { data: gone } = await products(supabase).select('metadata').eq('id', productId).maybeSingle();
     const { error: deleteError } = await products(supabase).delete().eq('id', productId);
     if (deleteError) throw deleteError;
+    // A deleted Wix import is remembered so "Import from Wix" doesn't create
+    // it again (Studio Sprint 109; portal.site_settings 'wix_import_skipped').
+    const wixId = gone?.metadata?.wix?.id;
+    if (wixId) await rememberSkippedWix(supabase, String(wixId), admin.email);
     return res.json({ ok: true, deleted: true });
   }
 

@@ -58,8 +58,10 @@ export async function importWixProducts(
   existing: DownloadProduct[],
   ownerEmail: string,
   onProgress: (p: WixImportProgress) => void,
+  // Wix products deleted after an earlier import: not created again.
+  skipped: string[] = [],
 ): Promise<WixImportProgress> {
-  const already = new Set(existing.map((d) => d.metadata?.wix?.id).filter(Boolean));
+  const already = new Set([...existing.map((d) => d.metadata?.wix?.id).filter(Boolean), ...skipped]);
   const todo = IMPORTABLE.filter((p) => !already.has(p.wixId));
   const library = await listFiles();
   const usedNames = new Map<string, number>();
@@ -111,6 +113,12 @@ export async function importWixProducts(
 }
 
 export const WIX_PRODUCT_COUNT = IMPORTABLE.length;
+
+/** How many Wix products are still to import (not imported, not deleted). */
+export function wixLeftToImport(existing: DownloadProduct[], skipped: string[]) {
+  const done = new Set([...existing.map((d) => d.metadata?.wix?.id).filter(Boolean), ...skipped]);
+  return IMPORTABLE.filter((p) => !done.has(p.wixId)).length;
+}
 
 /**
  * "Update from Wix": for imported products still in Draft, attaches the PDF
