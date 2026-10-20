@@ -8,6 +8,23 @@ async function parse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
+// Also returns the Wix products deleted after import (Studio Sprint 109), so
+// "Import from Wix" leaves them out.
+export async function listDownloadsAndSkipped(): Promise<{ downloads: DownloadProduct[]; wixSkipped: string[] }> {
+  const data = await parse<{ downloads: DownloadProduct[]; wixSkipped?: string[] }>(await apiFetch('/api/access-management?resource=library&downloads=1'));
+  return { downloads: data.downloads, wixSkipped: data.wixSkipped ?? [] };
+}
+
+export async function clearWixSkipped() {
+  await parse(
+    await apiFetch('/api/access-management?resource=library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'wix-skipped-clear' }),
+    }),
+  );
+}
+
 export async function listDownloads(): Promise<DownloadProduct[]> {
   const { downloads } = await parse<{ downloads: DownloadProduct[] }>(await apiFetch('/api/access-management?resource=library&downloads=1'));
   return downloads;

@@ -1,3 +1,4 @@
+import { clearSkippedWix, skippedWixIds } from './release.js';
 import { createHash, randomUUID } from 'node:crypto';
 
 /**
@@ -330,6 +331,8 @@ async function listDownloads(res, supabase) {
   const releaseOf = new Map(((release && !release.error && release.data) || []).map(({ id, ...rest }) => [id, rest]));
   const galleryOf = new Map(((galleries && !galleries.error && galleries.data) || []).map((g) => [g.id, g.gallery]));
   return res.json({
+    // Wix products deleted after import: "Import from Wix" leaves them out.
+    wixSkipped: await skippedWixIds(supabase),
     downloads: rows.map((r) => ({
       ...r,
       category_slug: r.category_id ? slugOf.get(r.category_id) ?? null : null,
@@ -353,6 +356,10 @@ export async function handleLibrary(req, res, supabase, admin) {
     if (body.action === 'from-url') return fromUrl(res, supabase, body, admin);
     if (body.action === 'gallery-upload-url') return galleryUploadUrl(res, supabase, body);
     if (body.action === 'gallery-from-url') return galleryFromUrl(res, supabase, body);
+    if (body.action === 'wix-skipped-clear') {
+      await clearSkippedWix(supabase, admin.email);
+      return res.json({ ok: true });
+    }
     return res.status(400).json({ error: 'Unknown action.' });
   }
   if (req.method === 'PATCH') return updateFile(res, supabase, body);

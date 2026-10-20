@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Download, FileText, Package, Plus, Store } from 'lucide-react';
 import { Button, PrimaryButton } from '../../components/ui/Button';
 import { EMPTY_GALLERY } from '../../lib/productGallery';
-import { listDownloads } from './api';
+import { clearWixSkipped, listDownloadsAndSkipped } from './api';
 import { DownloadEditor } from './DownloadEditor';
 import type { DownloadDraft, DownloadProduct } from './types';
 import { releaseLabel } from './ReleasePanel';
-import { importWixProducts, updateFromWix, WIX_PRODUCT_COUNT, type WixImportProgress } from './wixImport';
+import { importWixProducts, updateFromWix, wixLeftToImport, type WixImportProgress } from './wixImport';
 
 interface Props {
   ownerEmail: string;
@@ -53,10 +53,14 @@ export function Downloads({ ownerEmail, onHome }: Props) {
   const [importing, setImporting] = useState<WixImportProgress | null>(null);
   const [importDone, setImportDone] = useState<WixImportProgress | null>(null);
   const [stage, setStage] = useState<string>('all');
+  const [wixSkipped, setWixSkipped] = useState<string[]>([]);
 
   const load = useCallback(() => {
-    listDownloads()
-      .then(setItems)
+    listDownloadsAndSkipped()
+      .then(({ downloads, wixSkipped: skipped }) => {
+        setItems(downloads);
+        setWixSkipped(skipped);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Could not load downloads.'));
   }, []);
   useEffect(load, [load]);
@@ -69,8 +73,18 @@ export function Downloads({ ownerEmail, onHome }: Props) {
     ['published', 'Published'],
   ];
   const visible = items?.filter((d) => stage === 'all' || d.status === stage || (stage === 'draft' && d.status === 'archived'));
-  const imported = items?.filter((d) => d.metadata?.wix).length ?? 0;
-  const left = WIX_PRODUCT_COUNT - imported;
+  // Deleted Wix drafts are remembered and not imported again (Sprint 109).
+  const left = items ? wixLeftToImport(items, wixSkipped) : 0;
+
+  async function restoreSkipped() {
+    if (!window.confirm(`Bring back the ${wixSkipped.length} Wix products you deleted? They'll be offered again in "Import from Wix".`)) return;
+    try {
+      await clearWixSkipped();
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not restore them.');
+    }
+  }
 
   const wixDrafts = items?.filter((d) => d.metadata?.wix && d.status === 'draft').length ?? 0;
 
@@ -96,7 +110,7 @@ export function Downloads({ ownerEmail, onHome }: Props) {
     setImportDone(null);
     setImporting({ done: 0, total: left, current: '', failed: [] });
     try {
-      const result = await importWixProducts(items, ownerEmail, setImporting);
+      const result = await importWixProducts(items, ownerEmail, setImporting, wixSkipped);
       setImportDone(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The import stopped.');
@@ -163,6 +177,14 @@ export function Downloads({ ownerEmail, onHome }: Props) {
                 </ul>
               )}
             </div>
+          )}
+          {wixSkipped.length > 0 && (
+            <p className="mb-4 text-xs text-navy-400">
+              {wixSkipped.length} Wix product{wixSkipped.length === 1 ? '' : 's'} you deleted won't be imported again.{' '}
+              <button type="button" className="font-semibold text-brand-600 hover:underline" onClick={() => void restoreSkipped()}>
+                Bring them back
+              </button>
+            </p>
           )}
           {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
           {items && items.length > 0 && (
