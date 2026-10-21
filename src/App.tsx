@@ -14,6 +14,7 @@ import { RequireAdmin } from './auth/RequireAdmin';
 import { AccessManagement } from './modules/access-management/AccessManagement';
 import { FileLibrary } from './modules/file-library/FileLibrary';
 import { Downloads } from './modules/downloads/Downloads';
+import { Journeys } from './modules/journeys/Journeys';
 import { ProductHeader } from './components/ProductHeader';
 import { Sidebar } from './components/Sidebar';
 import { WorkflowAccordion } from './engine/components/WorkflowAccordion';
@@ -32,7 +33,7 @@ import { decompressString } from './lib/compress';
 import { notifyEmbedParent } from './lib/embed';
 import type { ChecklistConfig, ChecklistData } from './engine/types';
 
-type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine' | 'access-management' | 'social-post-creator' | 'file-library' | 'downloads';
+type ActiveTool = null | 'checklist' | 'planner' | 'calculator' | 'ai-builder' | 'product-engine' | 'knowledge-engine' | 'content-engine' | 'access-management' | 'social-post-creator' | 'file-library' | 'downloads' | 'journeys';
 
 const TOOL_NAMES: Record<string, string> = {
   checklist: 'Checklist Builder',
@@ -46,6 +47,7 @@ const TOOL_NAMES: Record<string, string> = {
   'social-post-creator': 'Social Post Creator',
   'file-library': 'Files',
   downloads: 'Downloads',
+  journeys: 'Journeys',
 };
 
 // -----------------------------------------------------------------------
@@ -279,7 +281,7 @@ function StudioApp({ ownerEmail }: { ownerEmail: string }) {
   const [activeTool, setActiveTool] = useState<ActiveTool>(() => {
     if (window.location.pathname === '/studio/knowledge') return 'knowledge-engine';
     const tool = params.get('tool');
-    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine' || tool === 'access-management' || tool === 'social-post-creator' || tool === 'file-library' || tool === 'downloads') return tool as ActiveTool;
+    if (tool === 'checklist' || tool === 'planner' || tool === 'calculator' || tool === 'ai-builder' || tool === 'product-engine' || tool === 'knowledge-engine' || tool === 'content-engine' || tool === 'access-management' || tool === 'social-post-creator' || tool === 'file-library' || tool === 'downloads' || tool === 'journeys') return tool as ActiveTool;
     return null;
   });
 
@@ -342,6 +344,10 @@ function StudioApp({ ownerEmail }: { ownerEmail: string }) {
 
   if (activeTool === 'downloads') return (
     <Downloads ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
+  );
+
+  if (activeTool === 'journeys') return (
+    <Journeys ownerEmail={ownerEmail} onHome={() => setActiveTool(null)} />
   );
 
   if (activeTool === 'file-library') return (
