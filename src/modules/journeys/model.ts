@@ -1,4 +1,4 @@
-import type { JourneyAction, JourneyActionKind, JourneyContent, JourneyDraft, JourneyRow, JourneyStage } from './types';
+import type { JourneyAction, JourneyActionKind, JourneyContent, JourneyDraft, JourneyRow, JourneyStage, JourneyStageLevel } from './types';
 
 /**
  * The Journey editor's pure helpers (no React, no network) — ids, empty
@@ -21,6 +21,42 @@ export const ACTION_KINDS: { kind: JourneyActionKind; label: string }[] = [
   { kind: 'video', label: 'Video' },
   { kind: 'link', label: 'Link' },
 ];
+
+export const STAGE_LEVELS: { level: JourneyStageLevel; label: string }[] = [
+  { level: 'beginner', label: 'Getting started' },
+  { level: 'best_practices', label: 'Good practices' },
+  { level: 'expansion', label: 'Growing' },
+];
+
+export const MAX_OUTCOMES = 10;
+export const MAX_ACTION_MINUTES = 1440;
+
+/** A typed-in minutes value → whole minutes, or undefined when empty/invalid. */
+export function readMinutes(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(n) || n < 1) return undefined;
+  return Math.min(Math.round(n), MAX_ACTION_MINUTES);
+}
+
+/** The Journey's total estimated minutes (every action with a time). */
+export function totalMinutes(content: JourneyContent): number {
+  return content.stages.reduce((sum, s) => sum + stageMinutes(s), 0);
+}
+
+export function stageMinutes(stage: JourneyStage): number {
+  return stage.actions.reduce((sum, a) => sum + (a.estimatedMinutes ?? 0), 0);
+}
+
+/** "45 min", "2 h", "3 h 20 min". */
+export function formatMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+const LEVELS = STAGE_LEVELS.map((l) => l.level);
+const isLevel = (v: unknown): v is JourneyStageLevel => LEVELS.includes(v as JourneyStageLevel);
 
 /** Lower case, no accents, words joined by "-" (same rule as product slugs). */
 export function toSlug(text: string): string {
@@ -47,7 +83,18 @@ export function idsIn(content: JourneyContent): Set<string> {
 }
 
 export function emptyContent(): JourneyContent {
-  return { kind: 'journey', version: 1, goal: '', intro: '', completionMessage: '', notice: DEFAULT_NOTICE, validatedStates: [], stages: [] };
+  return {
+    kind: 'journey',
+    version: 1,
+    goal: '',
+    intro: '',
+    completionMessage: '',
+    notice: DEFAULT_NOTICE,
+    audience: '',
+    outcomes: [],
+    validatedStates: [],
+    stages: [],
+  };
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -63,16 +110,20 @@ export function readContent(raw: Partial<JourneyContent> | null | undefined): Jo
     intro: str(raw.intro),
     completionMessage: str(raw.completionMessage),
     notice: typeof raw.notice === 'string' ? raw.notice : base.notice,
+    audience: str(raw.audience),
+    outcomes: Array.isArray(raw.outcomes) ? raw.outcomes.filter((o): o is string => typeof o === 'string') : [],
     validatedStates: Array.isArray(raw.validatedStates) ? raw.validatedStates.map(String) : [],
     stages: stages.map((s) => ({
       id: str(s?.id),
       title: str(s?.title),
       summary: str(s?.summary),
+      ...(isLevel(s?.level) ? { level: s.level } : {}),
       actions: (Array.isArray(s?.actions) ? s.actions : []).map((a) => ({
         id: str(a?.id),
         title: str(a?.title),
         instructions: str(a?.instructions),
         optional: a?.optional === true,
+        ...(readMinutes(a?.estimatedMinutes) ? { estimatedMinutes: readMinutes(a?.estimatedMinutes) } : {}),
         kind: (['product', 'article', 'video', 'link', 'manual'] as const).includes(a?.kind) ? a.kind : 'manual',
         ...(a?.productId ? { productId: String(a.productId) } : {}),
         ...(a?.articleSlug ? { articleSlug: String(a.articleSlug) } : {}),
@@ -119,7 +170,31 @@ export function addStage(content: JourneyContent): JourneyContent {
 }
 
 export function updateStage(content: JourneyContent, stageId: string, patch: Partial<Omit<JourneyStage, 'id' | 'actions'>>): JourneyContent {
-  return { ...content, stages: content.stages.map((s) => (s.id === stageId ? { ...s, ...patch } : s)) };
+  return { ...content, stages: content.stages.map((s) => (s.id === stageId ? withoutUndefined({ ...s, ...patch }) : s)) };
+}
+
+/** A patch with `level: undefined` / `estimatedMinutes: undefined` clears the field. */
+function withoutUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T;
+}
+
+// --- expected outcomes -------------------------------------------------------
+
+export function addOutcome(content: JourneyContent): JourneyContent {
+  if (content.outcomes.length >= MAX_OUTCOMES) return content;
+  return { ...content, outcomes: [...content.outcomes, ''] };
+}
+
+export function updateOutcome(content: JourneyContent, index: number, text: string): JourneyContent {
+  return { ...content, outcomes: content.outcomes.map((o, i) => (i === index ? text : o)) };
+}
+
+export function removeOutcome(content: JourneyContent, index: number): JourneyContent {
+  return { ...content, outcomes: content.outcomes.filter((_, i) => i !== index) };
+}
+
+export function moveOutcome(content: JourneyContent, index: number, delta: -1 | 1): JourneyContent {
+  return { ...content, outcomes: move(content.outcomes, index, delta) };
 }
 
 export function removeStage(content: JourneyContent, stageId: string): JourneyContent {
@@ -139,7 +214,7 @@ export function updateAction(content: JourneyContent, stageId: string, actionId:
   return {
     ...content,
     stages: content.stages.map((s) =>
-      s.id === stageId ? { ...s, actions: s.actions.map((a) => (a.id === actionId ? { ...a, ...patch } : a)) } : s,
+      s.id === stageId ? { ...s, actions: s.actions.map((a) => (a.id === actionId ? withoutUndefined({ ...a, ...patch }) : a)) } : s,
     ),
   };
 }
@@ -202,6 +277,11 @@ export function draftProblems(draft: JourneyDraft): string[] {
   if (c.notice.trim().length > 1000) out.push('The notice is longer than 1,000 characters.');
   if (c.intro.length > 4000) out.push('The introduction is longer than 4,000 characters.');
   if (c.completionMessage.length > 2000) out.push('The completion message is longer than 2,000 characters.');
+  if (c.audience.trim().length > 500) out.push('"Who it is for" is longer than 500 characters.');
+  if (c.outcomes.length > MAX_OUTCOMES) out.push(`At most ${MAX_OUTCOMES} expected outcomes.`);
+  c.outcomes.forEach((o, i) => {
+    if (o.trim().length > 200) out.push(`Expected outcome ${i + 1} is longer than 200 characters.`);
+  });
   if (c.stages.length > 12) out.push('A Journey has at most 12 stages.');
   c.stages.forEach((s, i) => {
     const stageName = s.title.trim() || `Stage ${i + 1}`;
@@ -214,6 +294,9 @@ export function draftProblems(draft: JourneyDraft): string[] {
       if (!ID_RE.test(a.id)) out.push(`${label}: invalid id.`);
       if (a.title.trim().length > 160) out.push(`${label}: the title is longer than 160 characters.`);
       if (a.instructions.length > 4000) out.push(`${label}: the instructions are longer than 4,000 characters.`);
+      if (a.estimatedMinutes !== undefined && (!Number.isInteger(a.estimatedMinutes) || a.estimatedMinutes < 1 || a.estimatedMinutes > MAX_ACTION_MINUTES)) {
+        out.push(`${label}: the time must be between 1 and ${MAX_ACTION_MINUTES} minutes.`);
+      }
       const url = (a.url ?? '').trim();
       if ((a.kind === 'video' || a.kind === 'link') && url && !isHttpsUrl(url)) out.push(`${label}: the address must start with https:// (or leave it empty for now).`);
       if (a.kind === 'product' && a.productId && !UUID_RE.test(a.productId)) out.push(`${label}: choose the product again.`);
@@ -231,11 +314,15 @@ export function toSavedContent(content: JourneyContent): JourneyContent {
     intro: content.intro,
     completionMessage: content.completionMessage,
     notice: content.notice.trim(),
+    audience: content.audience.trim(),
+    // Empty lines are dropped (an unfinished one is not an outcome).
+    outcomes: content.outcomes.map((o) => o.trim()).filter(Boolean),
     validatedStates: content.validatedStates,
     stages: content.stages.map((s) => ({
       id: s.id,
       title: s.title.trim(),
       summary: s.summary,
+      ...(s.level ? { level: s.level } : {}),
       actions: s.actions.map((a) => {
         const url = (a.url ?? '').trim();
         const slug = (a.articleSlug ?? '').trim();
@@ -244,6 +331,7 @@ export function toSavedContent(content: JourneyContent): JourneyContent {
           title: a.title.trim(),
           instructions: a.instructions,
           optional: a.optional,
+          ...(a.estimatedMinutes ? { estimatedMinutes: a.estimatedMinutes } : {}),
           kind: a.kind,
           ...(a.kind === 'product' && a.productId ? { productId: a.productId } : {}),
           ...(a.kind === 'article' && slug ? { articleSlug: slug } : {}),

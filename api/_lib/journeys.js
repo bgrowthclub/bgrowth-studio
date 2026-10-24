@@ -1,5 +1,5 @@
 /**
- * Journeys (Portal migration 0066) — Studio's server side, served through
+ * Journeys (Portal migration 0068) — Studio's server side, served through
  * api/access-management.js (`?resource=journeys`, no new function). Every
  * call already passed requireAdmin().
  *
@@ -30,6 +30,9 @@ const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATE_RE = /^[A-Z]{2}$/;
 const KINDS = ['product', 'article', 'video', 'link', 'manual'];
+export const STAGE_LEVELS = ['beginner', 'best_practices', 'expansion'];
+const MAX_OUTCOMES = 10;
+const MAX_ACTION_MINUTES = 1440;
 
 function products(supabase) {
   return supabase.schema('portal').from('products');
@@ -91,6 +94,20 @@ export function checkJourneyStructure(content, product = {}) {
     err('completionMessage', 'The completion message is longer than 2,000 characters.');
   }
 
+  // Who it is for and what the member gets (recommended, not required).
+  if (content.audience !== undefined && typeof content.audience !== 'string') err('audience', '"Who it is for" must be text.');
+  else if (text(content.audience).length > 500) err('audience', '"Who it is for" is longer than 500 characters.');
+  else if (!text(content.audience)) warn('audience', 'Say who the Journey is for (shown on its page).');
+  if (content.outcomes !== undefined && !Array.isArray(content.outcomes)) err('outcomes', 'Expected outcomes must be a list.');
+  const outcomes = Array.isArray(content.outcomes) ? content.outcomes : [];
+  if (outcomes.length > MAX_OUTCOMES) err('outcomes', `At most ${MAX_OUTCOMES} expected outcomes.`);
+  outcomes.forEach((o, i) => {
+    if (typeof o !== 'string' || !o.trim()) err(`outcomes.${i}`, `Expected outcome ${i + 1}: write it or remove it.`);
+    else if (o.trim().length > 200) err(`outcomes.${i}`, `Expected outcome ${i + 1} is longer than 200 characters.`);
+  });
+  if (outcomes.length === 0) warn('outcomes', 'Add the expected outcomes (what the member will have at the end).');
+  let untimed = 0;
+
   const validated = Array.isArray(content.validatedStates) ? content.validatedStates : [];
   if (content.validatedStates !== undefined && !Array.isArray(content.validatedStates)) err('validatedStates', 'Validated states must be a list.');
   validated.forEach((s, i) => {
@@ -112,6 +129,7 @@ export function checkJourneyStructure(content, product = {}) {
     if (!text(stage?.title)) err(`${at}.title`, `Stage ${s + 1}: write a title.`);
     else if (text(stage.title).length > 120) err(`${at}.title`, `${name}: the title is longer than 120 characters.`);
     if (typeof stage?.summary === 'string' && stage.summary.length > 1000) err(`${at}.summary`, `${name}: the summary is longer than 1,000 characters.`);
+    if (stage?.level !== undefined && !STAGE_LEVELS.includes(stage.level)) err(`${at}.level`, `${name}: unknown level.`);
 
     const actions = Array.isArray(stage?.actions) ? stage.actions : [];
     if (actions.length === 0) err(`${at}.actions`, `${name}: add at least one action.`);
@@ -127,6 +145,10 @@ export function checkJourneyStructure(content, product = {}) {
       else if (text(action.title).length > 160) err(`${ap}.title`, `${label}: the title is longer than 160 characters.`);
       if (typeof action?.instructions === 'string' && action.instructions.length > 4000) {
         err(`${ap}.instructions`, `${label}: the instructions are longer than 4,000 characters.`);
+      }
+      if (action?.estimatedMinutes === undefined) untimed += 1;
+      else if (!Number.isInteger(action.estimatedMinutes) || action.estimatedMinutes < 1 || action.estimatedMinutes > MAX_ACTION_MINUTES) {
+        err(`${ap}.estimatedMinutes`, `${label}: the time must be a whole number of minutes between 1 and ${MAX_ACTION_MINUTES}.`);
       }
       if (!KINDS.includes(action?.kind)) {
         err(`${ap}.kind`, `${label}: choose what the action is (product, article, video, link or task).`);
@@ -156,6 +178,8 @@ export function checkJourneyStructure(content, product = {}) {
       }
     });
   });
+
+  if (untimed) warn('stages', `${untimed} action${untimed === 1 ? ' has' : 's have'} no estimated time — the total shown on the Website leaves ${untimed === 1 ? 'it' : 'them'} out.`);
 
   return { errors, warnings };
 }

@@ -168,8 +168,44 @@ test('a state-only action warns until that state is validated', () => {
   const c = journey([{ id: 's', title: 'S', actions: [{ id: 'a', title: 'CA rule', kind: 'manual', states: ['CA'] }] }]);
   const r = checkJourneyStructure(c, FREE);
   assert.equal(r.errors.length, 0);
-  assert.match(r.warnings[0].message, /hidden from members until CA/);
-  assert.equal(checkJourneyStructure({ ...c, validatedStates: ['CA'] }, FREE).warnings.length, 0);
+  const stateWarnings = (w) => w.filter((x) => x.path.endsWith('.states'));
+  assert.match(stateWarnings(r.warnings)[0].message, /hidden from members until CA/);
+  assert.equal(stateWarnings(checkJourneyStructure({ ...c, validatedStates: ['CA'] }, FREE).warnings).length, 0);
+});
+
+test('time, level, audience and outcomes: valid values pass, wrong ones block', () => {
+  const full = journey(
+    [{ id: 's', title: 'S', level: 'beginner', actions: [{ id: 'a', title: 'A', kind: 'manual', estimatedMinutes: 30 }] }],
+    { audience: 'New notaries', outcomes: ['Commissioned', 'First signing'] },
+  );
+  const ok = checkJourneyStructure(full, FREE);
+  assert.equal(ok.errors.length, 0);
+  assert.equal(ok.warnings.length, 0);
+
+  const bad = [
+    ['unknown level', { ...full, stages: [{ ...full.stages[0], level: 'expert' }] }],
+    ['minutes not whole', journey([{ id: 's', title: 'S', actions: [{ id: 'a', title: 'A', kind: 'manual', estimatedMinutes: 2.5 }] }])],
+    ['minutes as text', journey([{ id: 's', title: 'S', actions: [{ id: 'a', title: 'A', kind: 'manual', estimatedMinutes: '30' }] }])],
+    ['zero minutes', journey([{ id: 's', title: 'S', actions: [{ id: 'a', title: 'A', kind: 'manual', estimatedMinutes: 0 }] }])],
+    ['over a day', journey([{ id: 's', title: 'S', actions: [{ id: 'a', title: 'A', kind: 'manual', estimatedMinutes: 1441 }] }])],
+    ['audience too long', { ...full, audience: 'x'.repeat(501) }],
+    ['audience not text', { ...full, audience: ['x'] }],
+    ['outcomes not a list', { ...full, outcomes: 'Commissioned' }],
+    ['empty outcome', { ...full, outcomes: ['Commissioned', ' '] }],
+    ['outcome too long', { ...full, outcomes: ['x'.repeat(201)] }],
+    ['too many outcomes', { ...full, outcomes: Array.from({ length: 11 }, (_, i) => `O${i}`) }],
+  ];
+  for (const [name, content] of bad) {
+    assert.ok(checkJourneyStructure(content, FREE).errors.length > 0, name);
+  }
+});
+
+test('missing audience, outcomes or times only warn', () => {
+  const r = checkJourneyStructure(notary, FREE);
+  assert.equal(r.errors.length, 0);
+  assert.ok(r.warnings.some((w) => w.path === 'audience'));
+  assert.ok(r.warnings.some((w) => w.path === 'outcomes'));
+  assert.ok(r.warnings.some((w) => /5 actions have no estimated time/.test(w.message)));
 });
 
 // --- real status of resources ---------------------------------------------

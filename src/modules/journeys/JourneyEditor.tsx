@@ -9,8 +9,18 @@ import { getJourney, saveJourneyDraft } from './api';
 import {
   ACTION_KINDS,
   addAction,
+  addOutcome,
   addStage,
   draftProblems,
+  formatMinutes,
+  MAX_OUTCOMES,
+  moveOutcome,
+  readMinutes,
+  removeOutcome,
+  STAGE_LEVELS,
+  stageMinutes,
+  totalMinutes,
+  updateOutcome,
   moveAction,
   moveStage,
   removeAction,
@@ -21,7 +31,7 @@ import {
   updateStage,
 } from './model';
 import { ArticlePicker, ProductPicker } from './ResourcePicker';
-import type { JourneyAction, JourneyActionKind, JourneyCheck, JourneyContent, JourneyDraft, JourneyResources, JourneyStage } from './types';
+import type { JourneyAction, JourneyActionKind, JourneyCheck, JourneyContent, JourneyDraft, JourneyResources, JourneyStage, JourneyStageLevel } from './types';
 
 interface Props {
   initial: JourneyDraft;
@@ -182,6 +192,45 @@ export function JourneyEditor({ initial, initialCheck, resources, ownerEmail, on
           />
         </label>
         <label className="block">
+          <span className={LABEL}>Who it is for</span>
+          <textarea
+            value={c.audience}
+            onChange={(e) => editContent((x) => ({ ...x, audience: e.target.value }))}
+            rows={2}
+            className={INPUT}
+            placeholder="e.g. People who want a flexible side business and have never worked as a notary"
+          />
+        </label>
+        <div>
+          <span className={LABEL}>Expected outcomes</span>
+          <div className="space-y-2">
+            {c.outcomes.length === 0 && <p className="text-xs text-navy-400">What the member will have at the end — one per line.</p>}
+            {c.outcomes.map((outcome, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  value={outcome}
+                  onChange={(e) => editContent((x) => updateOutcome(x, i, e.target.value))}
+                  className={INPUT}
+                  placeholder="e.g. Commissioned as a notary in your state"
+                  aria-label={`Expected outcome ${i + 1}`}
+                />
+                <button type="button" className={ICON_BTN} disabled={i === 0} onClick={() => editContent((x) => moveOutcome(x, i, -1))} aria-label="Move outcome up">
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+                <button type="button" className={ICON_BTN} disabled={i === c.outcomes.length - 1} onClick={() => editContent((x) => moveOutcome(x, i, 1))} aria-label="Move outcome down">
+                  <ArrowDown className="h-4 w-4" />
+                </button>
+                <button type="button" className={`${ICON_BTN} hover:text-red-500`} onClick={() => editContent((x) => removeOutcome(x, i))} aria-label="Remove outcome">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            <Button type="button" size="sm" disabled={c.outcomes.length >= MAX_OUTCOMES} onClick={() => editContent(addOutcome)}>
+              <Plus className="h-4 w-4" /> Add outcome
+            </Button>
+          </div>
+        </div>
+        <label className="block">
           <span className={LABEL}>Introduction</span>
           <textarea value={c.intro} onChange={(e) => editContent((x) => ({ ...x, intro: e.target.value }))} rows={4} className={INPUT} />
         </label>
@@ -245,7 +294,10 @@ export function JourneyEditor({ initial, initialCheck, resources, ownerEmail, on
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-extrabold text-navy-900">Stages</h2>
-          <span className="text-xs text-navy-400">Name and order them as this Journey needs.</span>
+          <span className="text-xs text-navy-400">
+            Name and order them as this Journey needs.
+            {totalMinutes(c) > 0 && <> · Estimated total: {formatMinutes(totalMinutes(c))}</>}
+          </span>
         </div>
         {c.stages.length === 0 && <p className={`${CARD} text-sm text-navy-400`}>No stages yet.</p>}
         {c.stages.map((stage, i) => (
@@ -364,7 +416,7 @@ interface StageProps {
   index: number;
   count: number;
   resources: JourneyResources | null;
-  onChange: (patch: Partial<Pick<JourneyStage, 'title' | 'summary'>>) => void;
+  onChange: (patch: Partial<Pick<JourneyStage, 'title' | 'summary' | 'level'>>) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
   onAddAction: () => void;
@@ -382,6 +434,25 @@ function StageCard({ stage, index, count, resources, onChange, onMove, onRemove,
         <div className="min-w-0 flex-1 space-y-2">
           <input value={stage.title} onChange={(e) => onChange({ title: e.target.value })} placeholder="Stage title" className={`${INPUT} font-semibold`} />
           <textarea value={stage.summary} onChange={(e) => onChange({ summary: e.target.value })} rows={2} placeholder="What happens in this stage (optional)" className={INPUT} />
+          <div className="flex flex-wrap items-center gap-3 text-xs text-navy-500">
+            <label className="flex items-center gap-1.5">
+              Level
+              <select
+                value={stage.level ?? ''}
+                onChange={(e) => onChange({ level: (e.target.value || undefined) as JourneyStageLevel | undefined })}
+                className={`${INPUT} w-44 py-1`}
+                aria-label="Stage level"
+              >
+                <option value="">Not set</option>
+                {STAGE_LEVELS.map((l) => (
+                  <option key={l.level} value={l.level}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {stageMinutes(stage) > 0 && <span>Estimated: {formatMinutes(stageMinutes(stage))}</span>}
+          </div>
         </div>
         <div className="flex shrink-0 flex-col">
           <button type="button" className={ICON_BTN} disabled={index === 0} onClick={() => onMove(-1)} aria-label="Move stage up">
@@ -474,6 +545,20 @@ function ActionRow({ action, index, count, resources, onChange, onKind, onMove, 
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-navy-600">
             <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={action.optional} onChange={(e) => onChange({ optional: e.target.checked })} /> Optional
+            </label>
+            <label className="flex items-center gap-1.5">
+              Time
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                step={1}
+                value={action.estimatedMinutes ?? ''}
+                onChange={(e) => onChange({ estimatedMinutes: readMinutes(e.target.value) })}
+                className="w-16 rounded-md border border-navy-100 bg-white px-2 py-0.5 text-xs text-navy-900 outline-none focus:border-brand"
+                aria-label="Estimated time in minutes"
+              />
+              min
             </label>
             {refKind && (
               <label className="flex items-center gap-1.5">

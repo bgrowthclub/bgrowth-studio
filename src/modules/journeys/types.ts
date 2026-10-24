@@ -1,5 +1,5 @@
 /**
- * Journeys (Portal migration 0066) — guided paths to a goal, shown only on
+ * Journeys (Portal migration 0068) — guided paths to a goal, shown only on
  * the BGrowth Website. Each Journey is its own portal.products row
  * (content_type 'journey'); this is the shape of its `content`, checked by
  * the Portal's publishing endpoint (src/schemas/journeyContent.schema.ts
@@ -11,11 +11,16 @@ export type JourneyActionKind = 'product' | 'article' | 'video' | 'link' | 'manu
 /** A referenced resource as members will see it (same rule as the database). */
 export type ResourceState = 'available' | 'coming_soon' | 'unavailable';
 
+/** Where a stage sits: getting started, good practices, or growing. */
+export type JourneyStageLevel = 'beginner' | 'best_practices' | 'expansion';
+
 export interface JourneyAction {
   id: string;
   title: string;
   instructions: string;
   optional: boolean;
+  /** Estimated time in whole minutes (1–1440); the Website adds them up. */
+  estimatedMinutes?: number;
   kind: JourneyActionKind;
   productId?: string;
   articleSlug?: string;
@@ -30,6 +35,7 @@ export interface JourneyStage {
   id: string;
   title: string;
   summary: string;
+  level?: JourneyStageLevel;
   actions: JourneyAction[];
 }
 
@@ -40,6 +46,10 @@ export interface JourneyContent {
   intro: string;
   completionMessage: string;
   notice: string;
+  /** Who the Journey is for. */
+  audience: string;
+  /** What the member should have at the end (at most 10). */
+  outcomes: string[];
   validatedStates: string[];
   stages: JourneyStage[];
 }

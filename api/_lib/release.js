@@ -19,7 +19,7 @@
  * The daily job on the Website publishes approved products whose date has
  * come (portal.publish_scheduled()).
  *
- * A Journey (content_type 'journey', Portal migration 0066) is checked by
+ * A Journey (content_type 'journey', Portal migration 0068) is checked by
  * checkJourney() (api/_lib/journeys.js) before review, approval and
  * "publish now": complete stages and actions, valid links, free, and every
  * referenced product/article still existing (unpublished ones are allowed —

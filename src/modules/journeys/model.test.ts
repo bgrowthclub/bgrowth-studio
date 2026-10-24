@@ -4,6 +4,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   addAction,
+  addOutcome,
+  formatMinutes,
+  readMinutes,
+  removeOutcome,
+  totalMinutes,
+  updateOutcome,
   addStage,
   draftProblems,
   emptyContent,
@@ -135,4 +141,74 @@ test('two Journeys opened from the list stay separate', () => {
 test('slugs follow the name until edited', () => {
   assert.equal(toSlug('Become a Mobile Notary!'), 'become-a-mobile-notary');
   assert.equal(toSlug('  Café & Négócio  '), 'cafe-negocio');
+});
+
+test('time per action: typed values become whole minutes; totals add up', () => {
+  assert.equal(readMinutes('45'), 45);
+  assert.equal(readMinutes(14.6), 15);
+  assert.equal(readMinutes(''), undefined);
+  assert.equal(readMinutes('abc'), undefined);
+  assert.equal(readMinutes(0), undefined);
+  assert.equal(readMinutes(5000), 1440);
+
+  let c = addStage(emptyContent());
+  const s = c.stages[0].id;
+  c = addAction(addAction(c, s), s);
+  const [a1, a2] = c.stages[0].actions.map((a) => a.id);
+  c = updateAction(c, s, a1, { estimatedMinutes: 90 });
+  c = updateAction(c, s, a2, { estimatedMinutes: 20 });
+  assert.equal(totalMinutes(c), 110);
+  assert.equal(formatMinutes(110), '1 h 50 min');
+  assert.equal(formatMinutes(120), '2 h');
+  assert.equal(formatMinutes(45), '45 min');
+
+  // Clearing the time removes the field (nothing saved as undefined/null).
+  c = updateAction(c, s, a2, { estimatedMinutes: undefined });
+  assert.equal('estimatedMinutes' in c.stages[0].actions[1], false);
+  assert.equal(totalMinutes(c), 90);
+  const saved = toSavedContent(c).stages[0].actions;
+  assert.equal(saved[0].estimatedMinutes, 90);
+  assert.equal('estimatedMinutes' in saved[1], false);
+});
+
+test('stage level, audience and outcomes are kept, saved and read back', () => {
+  let c = addStage(emptyContent());
+  const s = c.stages[0].id;
+  c = updateStage(c, s, { level: 'best_practices' });
+  c = { ...c, audience: '  New notaries  ' };
+  c = addOutcome(addOutcome(addOutcome(c)));
+  c = updateOutcome(c, 0, ' Commissioned ');
+  c = updateOutcome(c, 2, 'First signing');
+  const saved = toSavedContent(c);
+  assert.equal(saved.stages[0].level, 'best_practices');
+  assert.equal(saved.audience, 'New notaries');
+  assert.deepEqual(saved.outcomes, ['Commissioned', 'First signing']);
+
+  const back = readContent(saved);
+  assert.equal(back.stages[0].level, 'best_practices');
+  assert.deepEqual(back.outcomes, ['Commissioned', 'First signing']);
+  assert.deepEqual(removeOutcome(back, 0).outcomes, ['First signing']);
+
+  // No level chosen → no field; an unknown saved level is dropped.
+  assert.equal('level' in updateStage(c, s, { level: undefined }).stages[0], false);
+  assert.equal('level' in readContent({ stages: [{ id: 's', title: 'T', summary: '', level: 'expert' as never, actions: [] }] }).stages[0], false);
+
+  // Old drafts without the new fields still open.
+  const old = readContent({ goal: 'g', stages: [] });
+  assert.equal(old.audience, '');
+  assert.deepEqual(old.outcomes, []);
+});
+
+test('at most 10 outcomes; draft problems for the new fields', () => {
+  let c = emptyContent();
+  for (let i = 0; i < 12; i += 1) c = addOutcome(c);
+  assert.equal(c.outcomes.length, 10);
+  const long = { ...emptyContent(), audience: 'x'.repeat(501), outcomes: ['x'.repeat(201)] };
+  const problems = draftProblems(draftWith(long));
+  assert.ok(problems.some((p) => p.includes('Who it is for')));
+  assert.ok(problems.some((p) => p.includes('Expected outcome 1')));
+  let t = addStage(emptyContent());
+  t = addAction(t, t.stages[0].id);
+  t = updateAction(t, t.stages[0].id, t.stages[0].actions[0].id, { estimatedMinutes: 2.5 });
+  assert.ok(draftProblems(draftWith(t)).some((p) => p.includes('between 1 and 1440 minutes')));
 });
