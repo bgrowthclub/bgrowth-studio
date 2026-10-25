@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound, Camera, FolderOpen, Download } from 'lucide-react';
+import { ClipboardList, BookOpen, FileText, Receipt, ArrowRight, Calculator, Sparkles, Database, Megaphone, KeyRound, Camera, FolderOpen, Download, Route } from 'lucide-react';
 import type { StudioTool } from './types';
 
 const TOOLS: StudioTool[] = [
@@ -92,6 +92,14 @@ const TOOLS: StudioTool[] = [
     status: 'live',
   },
   {
+    id: 'journeys',
+    name: 'Journeys',
+    description: 'Guided paths to a goal — stages and actions pointing to your products and articles — shown only on bgrowth.app.',
+    icon: 'journeys',
+    color: '#047857',
+    status: 'live',
+  },
+  {
     id: 'social-post-creator',
     name: 'Social Post Creator',
     description: 'Now inside Content Engine (Photo Post): your photos become ready-to-post carousel images, copy and hashtags.',
@@ -115,6 +123,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'social-post-creator': <Camera className="h-7 w-7" />,
   'file-library': <FolderOpen className="h-7 w-7" />,
   downloads: <Download className="h-7 w-7" />,
+  journeys: <Route className="h-7 w-7" />,
 };
 
 interface StudioHomeProps {

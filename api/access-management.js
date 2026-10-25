@@ -3,6 +3,7 @@ import { checkForDuplicateGrant, deriveGrantStatus } from './_lib/accessGrants.j
 import { requireAdmin } from './_lib/requireAdmin.js';
 import { handleLibrary } from './_lib/fileLibrary.js';
 import { handleRelease } from './_lib/release.js';
+import { handleJourneys } from './_lib/journeys.js';
 
 /**
  * Diagnostic-only: logs which stage failed, server-side, without ever
@@ -304,8 +305,8 @@ export default async function handler(req, res) {
   if (!admin) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const resource = req.query.resource;
-  if (resource !== 'members' && resource !== 'grants' && resource !== 'library' && resource !== 'release') {
-    return res.status(400).json({ error: 'resource must be "members", "grants", "library" or "release".' });
+  if (resource !== 'members' && resource !== 'grants' && resource !== 'library' && resource !== 'release' && resource !== 'journeys') {
+    return res.status(400).json({ error: 'resource must be "members", "grants", "library", "release" or "journeys".' });
   }
 
   logSupabaseHostname();
@@ -322,6 +323,7 @@ export default async function handler(req, res) {
     if (resource === 'members') return await handleMembers(req, res, supabase);
     if (resource === 'library') return await handleLibrary(req, res, supabase, admin);
     if (resource === 'release') return await handleRelease(req, res, supabase, admin);
+    if (resource === 'journeys') return await handleJourneys(req, res, supabase);
     return await handleGrants(req, res, supabase, admin);
   } catch (err) {
     logDiagnostic(`${resource}:unhandled`, err);

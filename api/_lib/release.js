@@ -18,7 +18,16 @@
  *
  * The daily job on the Website publishes approved products whose date has
  * come (portal.publish_scheduled()).
+ *
+ * A Journey (content_type 'journey', Portal migration 0068) is checked by
+ * checkJourney() (api/_lib/journeys.js) before review, approval and
+ * "publish now": complete stages and actions, valid links, free, and every
+ * referenced product/article still existing (unpublished ones are allowed —
+ * members see "Coming soon"). A Journey members have started can't be
+ * deleted (their progress would go with it).
  */
+
+import { checkJourney } from './journeys.js';
 
 const STAGES = new Set(['draft', 'ready_for_review', 'approved']);
 
@@ -67,7 +76,7 @@ export async function handleRelease(req, res, supabase, admin) {
   if (!productId) return res.status(400).json({ error: 'productId is required.' });
 
   const { data: p, error } = await products(supabase)
-    .select('id, name, short_description, cover_image_url, is_free, price_cents, content_type, content, status')
+    .select('id, name, short_description, cover_image_url, is_free, is_trial_eligible, price_cents, content_type, content, status')
     .eq('id', productId)
     .maybeSingle();
   if (error) throw error;
@@ -76,6 +85,17 @@ export async function handleRelease(req, res, supabase, admin) {
 
   const now = new Date().toISOString();
 
+  // A Journey that isn't complete can't move forward (review, approval, sale).
+  async function journeyNotReady() {
+    if (p.content_type !== 'journey') return null;
+    const check = await checkJourney(supabase, p);
+    if (check.ready) return null;
+    return res.status(422).json({
+      error: `This Journey isn't ready: ${check.errors.map((e) => e.message).join(' ')}`,
+      check,
+    });
+  }
+
   if (body.action === 'stage') {
     const stage = String(body.stage ?? '');
     if (!STAGES.has(stage)) return res.status(400).json({ error: 'Unknown stage.' });
@@ -83,9 +103,13 @@ export async function handleRelease(req, res, supabase, admin) {
     if (stage === 'ready_for_review') {
       const missing = missingForReview(p);
       if (missing.length) return res.status(422).json({ error: `Missing: ${missing.join(', ')}.` });
+      const blocked = await journeyNotReady();
+      if (blocked) return blocked;
       patch = { status: stage, reviewed_by: admin.email, reviewed_at: now, approved_by: null, approved_at: null };
     } else if (stage === 'approved') {
       if (p.status !== 'ready_for_review') return res.status(409).json({ error: 'Mark it as reviewed first.' });
+      const blocked = await journeyNotReady();
+      if (blocked) return blocked;
       patch = { status: stage, approved_by: admin.email, approved_at: now };
     } else {
       patch = { status: 'draft', reviewed_by: null, reviewed_at: null, approved_by: null, approved_at: null, scheduled_publish_at: null };
@@ -110,6 +134,8 @@ export async function handleRelease(req, res, supabase, admin) {
 
   if (body.action === 'publish-now') {
     if (p.status !== 'approved') return res.status(409).json({ error: 'Approve it before publishing.' });
+    const blocked = await journeyNotReady();
+    if (blocked) return blocked;
     const { error: rpcError } = await supabase
       .schema('portal')
       .rpc('publish_existing', { p_product_id: productId, p_published_by: admin.email });
@@ -131,6 +157,13 @@ export async function handleRelease(req, res, supabase, admin) {
     }
     if (!inBundles.error && (inBundles.count ?? 0) > 0) {
       return res.status(409).json({ error: 'This product is part of a bundle — take it out of the bundle first.' });
+    }
+    if (p.content_type === 'journey') {
+      const started = await portal.from('workspace_instances').select('id', { count: 'exact', head: true }).eq('product_id', productId);
+      if (started.error) throw started.error;
+      if ((started.count ?? 0) > 0) {
+        return res.status(409).json({ error: 'Members have started this Journey — it can’t be deleted.' });
+      }
     }
     const { data: gone } = await products(supabase).select('metadata').eq('id', productId).maybeSingle();
     const { error: deleteError } = await products(supabase).delete().eq('id', productId);

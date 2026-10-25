@@ -37,10 +37,25 @@ interface Props {
   saveFirst: () => Promise<boolean>;
   onChanged: (next: { status: string; scheduledAt: string | null; reviewedBy?: string | null; approvedBy?: string | null }) => void;
   ownerEmail: string;
+  /** What "Mark as reviewed" needs (default: a Download's requirements). */
+  requirements?: string;
+  /** Asked before "Publish now" (default: going on sale). */
+  publishConfirm?: string;
 }
 
 /** The steps a product goes through before it is sold: review, approval, date. */
-export function ReleasePanel({ productId, status, scheduledAt, reviewedBy, approvedBy, saveFirst, onChanged, ownerEmail }: Props) {
+export function ReleasePanel({
+  productId,
+  status,
+  scheduledAt,
+  reviewedBy,
+  approvedBy,
+  saveFirst,
+  onChanged,
+  ownerEmail,
+  requirements = 'Needs a cover, a short description, a price (or free) and at least one file.',
+  publishConfirm = 'Publish it now? It goes on sale on bgrowth.app.',
+}: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [day, setDay] = useState(scheduledAt ? scheduledAt.slice(0, 10) : '');
@@ -81,7 +96,7 @@ export function ReleasePanel({ productId, status, scheduledAt, reviewedBy, appro
     });
   const publishNow = () =>
     run('publish', async () => {
-      if (!window.confirm('Publish it now? It goes on sale on bgrowth.app.')) return;
+      if (!window.confirm(publishConfirm)) return;
       await releaseAction(productId, { action: 'publish-now' });
       onChanged({ status: 'published', scheduledAt: null });
     });
@@ -146,7 +161,7 @@ export function ReleasePanel({ productId, status, scheduledAt, reviewedBy, appro
           </Button>
         )}
       </div>
-      {current === 0 && <p className="mt-2 text-[11px] text-navy-300">Needs a cover, a short description, a price (or free) and at least one file.</p>}
+      {current === 0 && <p className="mt-2 text-[11px] text-navy-300">{requirements}</p>}
       {current >= 1 && current <= 3 && (
         <p className="mt-2 text-[11px] text-navy-300">Saving changes in this page sends it back to Draft, to be reviewed again.</p>
       )}
