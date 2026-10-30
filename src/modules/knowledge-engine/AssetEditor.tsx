@@ -581,9 +581,14 @@ export function AssetEditor({ item, onSave, onSaveInPlace, onReleaseChanged, onP
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className={labelCls}>Who can read it</label>
-                  <select className={inputCls} value={draft.publishing.access ?? 'members'} onChange={e => setPublishing('access', e.target.value)}>
+                  {/* Free by default since 30/10/2026 (Portal migration 0072):
+                      an article nobody marks is open to everyone, so the
+                      Knowledge hub can be open before launch without sending
+                      a reader to the closed sign-up. Mark the restricted
+                      ones here. */}
+                  <select className={inputCls} value={draft.publishing.access ?? 'everyone'} onChange={e => setPublishing('access', e.target.value)}>
+                    <option value="everyone">Everyone — the whole article is open (default)</option>
                     <option value="members">Members — visitors see the start and are asked to sign up</option>
-                    <option value="everyone">Everyone — the whole article is open</option>
                     {sitePlans.map(p => (
                       <option key={p.slug} value={`plan:${p.slug}`}>{p.name} plan or above — others see the start and the plans</option>
                     ))}
