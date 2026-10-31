@@ -4,6 +4,7 @@ import { requireAdmin } from './_lib/requireAdmin.js';
 import { handleLibrary } from './_lib/fileLibrary.js';
 import { handleRelease } from './_lib/release.js';
 import { handleJourneys } from './_lib/journeys.js';
+import { handleCourses } from './_lib/courses.js';
 
 /**
  * Diagnostic-only: logs which stage failed, server-side, without ever
@@ -305,8 +306,8 @@ export default async function handler(req, res) {
   if (!admin) return res.status(401).json({ ok: false, error: 'Sign in to BGrowth Studio with an admin account.' });
 
   const resource = req.query.resource;
-  if (resource !== 'members' && resource !== 'grants' && resource !== 'library' && resource !== 'release' && resource !== 'journeys') {
-    return res.status(400).json({ error: 'resource must be "members", "grants", "library", "release" or "journeys".' });
+  if (resource !== 'members' && resource !== 'grants' && resource !== 'library' && resource !== 'release' && resource !== 'journeys' && resource !== 'courses') {
+    return res.status(400).json({ error: 'resource must be "members", "grants", "library", "release", "journeys" or "courses".' });
   }
 
   logSupabaseHostname();
@@ -324,6 +325,7 @@ export default async function handler(req, res) {
     if (resource === 'library') return await handleLibrary(req, res, supabase, admin);
     if (resource === 'release') return await handleRelease(req, res, supabase, admin);
     if (resource === 'journeys') return await handleJourneys(req, res, supabase);
+    if (resource === 'courses') return await handleCourses(req, res, supabase);
     return await handleGrants(req, res, supabase, admin);
   } catch (err) {
     logDiagnostic(`${resource}:unhandled`, err);
