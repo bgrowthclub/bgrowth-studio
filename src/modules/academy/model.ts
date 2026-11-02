@@ -195,8 +195,13 @@ function cleanQuestion(q: CourseQuestion): CourseQuestion | null {
   const base = { id: q.id, prompt, ...(q.explanation?.trim() ? { explanation: q.explanation.trim() } : {}) };
 
   if (q.kind === 'typed') {
+    // A typed question with no accepted answer is KEPT, not dropped: that is
+    // how a course imported from Wix arrives (Wix stores no key for its
+    // typed and numeric questions), and dropping it at save would lose the
+    // question for good. The student never sees it — the reader skips a
+    // question it cannot mark — and the check warns it is still pending.
     const accept = q.accept.map((a) => a.trim()).filter(Boolean).slice(0, MAX_TYPED_ANSWERS);
-    return accept.length ? { ...base, kind: 'typed', accept } : null;
+    return { ...base, kind: 'typed', accept };
   }
 
   const options = q.options.map((o) => ({ id: o.id, text: o.text.trim() })).filter((o) => o.text).slice(0, MAX_QUIZ_OPTIONS);
@@ -217,7 +222,7 @@ export function questionGaps(q: CourseQuestion): string[] {
   const gaps: string[] = [];
   if (!q.prompt.trim()) gaps.push('no question written');
   if (q.kind === 'typed') {
-    if (!q.accept.some((a) => a.trim())) gaps.push('no accepted answer');
+    if (!q.accept.some((a) => a.trim())) gaps.push('no accepted answer yet');
     return gaps;
   }
   const options = q.options.filter((o) => o.text.trim());

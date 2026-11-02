@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, GraduationCap, Plus } from 'lucide-react';
+import { ArrowLeft, BookOpen, GraduationCap, Plus, Upload } from 'lucide-react';
 import { PrimaryButton } from '../../components/ui/Button';
 import { releaseLabel } from '../downloads/ReleasePanel';
 import { getCourse, listCourses } from './api';
 import { CourseEditor } from './CourseEditor';
+import { WixCoursesPanel } from './WixCoursesPanel';
 import { emptyDraft, formatMinutes, toDraft } from './model';
 import type { CourseCheck, CourseDraft, CourseListItem } from './types';
 
@@ -32,6 +33,7 @@ export function Academy({ ownerEmail, onHome }: Props) {
   const [editing, setEditing] = useState<{ draft: CourseDraft; check: CourseCheck | null } | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
   const [stage, setStage] = useState('all');
+  const [wixOpen, setWixOpen] = useState(false);
 
   const load = useCallback(() => {
     listCourses()
@@ -86,10 +88,20 @@ export function Academy({ ownerEmail, onHome }: Props) {
               Courses the member works through in their Workspace: modules, lessons and the tools each lesson hands over. A course sells like any other
               product — it can be free, paid, in a bundle or included in a plan.
             </p>
-            <PrimaryButton type="button" size="sm" onClick={() => setEditing({ draft: emptyDraft(), check: null })}>
-              <Plus className="h-4 w-4" /> New course
-            </PrimaryButton>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setWixOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-navy-100 bg-white px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50"
+              >
+                <Upload className="h-3.5 w-3.5" /> Import from Wix
+              </button>
+              <PrimaryButton type="button" size="sm" onClick={() => setEditing({ draft: emptyDraft(), check: null })}>
+                <Plus className="h-4 w-4" /> New course
+              </PrimaryButton>
+            </div>
           </div>
+          {wixOpen && <WixCoursesPanel ownerEmail={ownerEmail} onDone={load} onClose={() => setWixOpen(false)} />}
           {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
           {items && items.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-1.5">

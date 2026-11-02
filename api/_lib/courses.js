@@ -132,7 +132,11 @@ export function checkCourse(row) {
             // A typed answer has no options: `accept` is the whole key.
             if (kind === 'typed') {
               const accept = Array.isArray(question.accept) ? question.accept.filter((a) => String(a ?? '').trim()) : [];
-              if (!accept.length) problems.push(`${atQ}: no accepted answer.`);
+              // A warning, never a problem: a question imported from Wix has
+              // no answer key because Wix stores none. It is kept so it can
+              // be written later, and the student is never shown it, so it
+              // must not hold the whole course back from going out.
+              if (!accept.length) warnings.push(`${atQ}: no answer written yet, so students won\u2019t see this question.`);
               if (accept.length > MAX_TYPED_ANSWERS) problems.push(`${atQ}: at most ${MAX_TYPED_ANSWERS} accepted answers.`);
               return;
             }

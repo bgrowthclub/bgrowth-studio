@@ -629,7 +629,11 @@ function QuestionEditor({
       )}
 
       {gaps.length > 0 && question.prompt.trim() && (
-        <p className="mt-1.5 text-xs text-red-500">Not published yet: {gaps.join('; ')}.</p>
+        <p className={`mt-1.5 text-xs ${question.kind === 'typed' ? 'text-amber-600' : 'text-red-500'}`}>
+          {question.kind === 'typed'
+            ? 'Students don’t see this one until you write the answer — it is kept here waiting.'
+            : `Not published yet: ${gaps.join('; ')}.`}
+        </p>
       )}
 
       <textarea
