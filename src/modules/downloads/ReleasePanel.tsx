@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CalendarClock, Check, Loader2, Rocket, Undo2 } from 'lucide-react';
 import { Button, PrimaryButton } from '../../components/ui/Button';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { releaseAction } from './api';
 
 /** Stage shown in the list and the editor (Portal migration 0051). */
@@ -54,9 +55,10 @@ export function ReleasePanel({
   onChanged,
   ownerEmail,
   requirements = 'Needs a cover, a short description, a price (or free) and at least one file.',
-  publishConfirm = 'Publish it now? It goes on sale on bgrowth.app.',
+  publishConfirm = 'It goes on sale on bgrowth.app right away.',
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [day, setDay] = useState(scheduledAt ? scheduledAt.slice(0, 10) : '');
   const current = stepIndex(status, scheduledAt);
@@ -96,9 +98,9 @@ export function ReleasePanel({
     });
   const publishNow = () =>
     run('publish', async () => {
-      if (!window.confirm(publishConfirm)) return;
       await releaseAction(productId, { action: 'publish-now' });
       onChanged({ status: 'published', scheduledAt: null });
+      setConfirmPublish(false);
     });
 
   const spin = (key: string) => busy === key && <Loader2 className="h-4 w-4 animate-spin" />;
@@ -150,7 +152,7 @@ export function ReleasePanel({
                 Remove date
               </Button>
             )}
-            <PrimaryButton type="button" size="sm" disabled={busy !== null} onClick={() => void publishNow()}>
+            <PrimaryButton type="button" size="sm" disabled={busy !== null} onClick={() => setConfirmPublish(true)}>
               {spin('publish') || <Rocket className="h-4 w-4" />} Publish now
             </PrimaryButton>
           </>
@@ -166,6 +168,16 @@ export function ReleasePanel({
         <p className="mt-2 text-[11px] text-navy-300">Saving changes in this page sends it back to Draft, to be reviewed again.</p>
       )}
       {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+
+      <ConfirmDialog
+        open={confirmPublish}
+        title="Publish now?"
+        message={publishConfirm}
+        confirmLabel="Publish"
+        busy={busy === 'publish'}
+        onConfirm={() => void publishNow()}
+        onCancel={() => setConfirmPublish(false)}
+      />
     </section>
   );
 }

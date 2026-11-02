@@ -340,7 +340,7 @@ export function JourneyEditor({ initial, initialCheck, resources, ownerEmail, on
           approvedBy={draft.approvedBy}
           ownerEmail={ownerEmail}
           requirements="Needs a cover, a short description, a goal, the notice, and every stage with at least one complete action. See the check above."
-          publishConfirm="Publish this Journey now? It goes live on bgrowth.app."
+          publishConfirm="The Journey goes live on bgrowth.app right away, for anyone who can see the site."
           saveFirst={save}
           onChanged={(next) => {
             setDraft((d) => ({

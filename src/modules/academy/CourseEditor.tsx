@@ -391,7 +391,7 @@ export function CourseEditor({ initial, initialCheck, ownerEmail, onBack, onSave
           approvedBy={draft.approvedBy}
           ownerEmail={ownerEmail}
           requirements="Needs a name, an address, a short description, a price (or free), and every module with at least one lesson. See the check above."
-          publishConfirm="Publish this course now? It goes on sale on bgrowth.app."
+          publishConfirm="The course goes on sale on bgrowth.app right away. Students can buy it and start it from this moment."
           saveFirst={save}
           onChanged={(next) =>
             setDraft((d) => ({
