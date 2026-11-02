@@ -20,7 +20,9 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
-const BLOCK_TYPES = ['text', 'image', 'video', 'file', 'link', 'product'];
+const BLOCK_TYPES = ['text', 'image', 'video', 'file', 'link', 'product', 'quiz'];
+const MAX_QUIZ_QUESTIONS = 30;
+const MAX_QUIZ_OPTIONS = 6;
 const MAX_LESSON_MINUTES = 1440;
 const MAX_OUTCOMES = 10;
 
@@ -64,6 +66,9 @@ export function checkCourse(row) {
   // 'course'), so a repeated one would make two lessons share one tick.
   const moduleIds = new Set();
   const lessonIds = new Set();
+  // A quiz answer is kept per question id in the same record, so a repeated
+  // question id would make two questions share one answer.
+  const questionIds = new Set();
 
   modules.forEach((module, mi) => {
     const where = `Module ${mi + 1}`;
@@ -103,6 +108,31 @@ export function checkCourse(row) {
         }
         if (block.type === 'product' && !SLUG_RE.test(String(block.slug ?? '')))
           problems.push(`${atBlock}: use the product's address (lower-case letters, numbers and dashes).`);
+        if (block.type === 'quiz') {
+          const questions = Array.isArray(block.questions) ? block.questions : [];
+          if (!questions.length) problems.push(`${atBlock}: the quiz has no question.`);
+          if (questions.length > MAX_QUIZ_QUESTIONS) problems.push(`${atBlock}: a quiz takes at most ${MAX_QUIZ_QUESTIONS} questions.`);
+          questions.forEach((question, qi) => {
+            const atQ = `${atBlock}, question ${qi + 1}`;
+            if (!ID_RE.test(String(question?.id ?? ''))) problems.push(`${atQ}: the id uses letters, numbers, dashes and underscores.`);
+            else if (questionIds.has(question.id))
+              problems.push(`${atQ}: two questions share the id “${question.id}” — an answer is kept per question id.`);
+            questionIds.add(question?.id);
+            if (!String(question?.prompt ?? '').trim()) problems.push(`${atQ}: no question written.`);
+
+            const options = Array.isArray(question?.options) ? question.options : [];
+            if (options.length < 2) problems.push(`${atQ}: a question needs at least two options.`);
+            if (options.length > MAX_QUIZ_OPTIONS) problems.push(`${atQ}: a question takes at most ${MAX_QUIZ_OPTIONS} options.`);
+            const optionIds = new Set();
+            options.forEach((option, oi) => {
+              if (!ID_RE.test(String(option?.id ?? ''))) problems.push(`${atQ}, option ${oi + 1}: the id uses letters, numbers, dashes and underscores.`);
+              else if (optionIds.has(option.id)) problems.push(`${atQ}, option ${oi + 1}: two options share the id “${option.id}”.`);
+              optionIds.add(option?.id);
+              if (!String(option?.text ?? '').trim()) problems.push(`${atQ}, option ${oi + 1}: no text.`);
+            });
+            if (!optionIds.has(question?.answer)) problems.push(`${atQ}: no right answer picked.`);
+          });
+        }
       });
     });
   });

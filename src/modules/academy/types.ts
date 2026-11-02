@@ -14,7 +14,24 @@ export type CourseBlock =
   | { type: 'video'; url: string; title?: string }
   | { type: 'file'; url: string; label?: string; note?: string }
   | { type: 'link'; url: string; label?: string; note?: string }
-  | { type: 'product'; slug: string; label?: string; note?: string };
+  | { type: 'product'; slug: string; label?: string; note?: string }
+  /**
+   * A self-check inside a lesson (02/11/2026). Never a gate: the student
+   * answers, is told at once whether they got it right and why, and the
+   * next lesson is open either way — no passing grade, no limit on tries.
+   */
+  | { type: 'quiz'; title?: string; questions: CourseQuestion[] };
+
+export interface CourseQuestion {
+  /** Stable: the student's answer is saved against it. */
+  id: string;
+  prompt: string;
+  options: { id: string; text: string }[];
+  /** The id of the one right option. */
+  answer: string;
+  /** Shown after answering, right or wrong. */
+  explanation?: string;
+}
 
 export type CourseBlockType = CourseBlock['type'];
 
