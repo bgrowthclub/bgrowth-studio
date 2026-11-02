@@ -348,7 +348,10 @@ async function readProgram(programId) {
     name,
     slug: slugFrom(name),
     shortDescription: details.replace(/\s+/g, ' ').slice(0, 300),
-    coverImageUrl: imageUrl(program?.description?.media?.image?.src ?? program?.description?.media?.image) ?? '',
+    // The cover lives at description.image ({ id, url, width, height }) —
+    // there is no `media` wrapper. 67 of the 72 programs have one; the rest
+    // need a cover picked here, which the release check already asks for.
+    coverImageUrl: imageUrl(program?.description?.image) ?? '',
     isFree: !price,
     priceCents: price,
     currency: 'usd',
