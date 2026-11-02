@@ -3,8 +3,9 @@ import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ChevronRight, Plus, 
 import { PrimaryButton } from '../../components/ui/Button';
 import { ReleasePanel } from '../downloads/ReleasePanel';
 import { getCourse, saveCourseDraft } from './api';
-import { BLOCK_TYPES, MAX_LESSON_MINUTES, MAX_QUIZ_OPTIONS, MAX_QUIZ_QUESTIONS, emptyBlock, emptyLesson, emptyModule, emptyQuestion, formatMinutes, move, newId, parseCourseJson, slugFrom, totalMinutes } from './model';
-import type { CourseBlock, CourseBlockType, CourseCheck, CourseDraft, CourseLesson, CourseModule, CourseQuestion } from './types';
+import { BLOCK_TYPES, MAX_LESSON_MINUTES, MAX_QUIZ_OPTIONS, MAX_QUIZ_QUESTIONS, MAX_TYPED_ANSWERS, QUESTION_KINDS, emptyBlock, emptyLesson, emptyModule, emptyQuestion, formatMinutes, move, newId, parseCourseJson, questionGaps, slugFrom, switchQuestionKind, totalMinutes } from './model';
+import { questionKind } from './types';
+import type { CourseBlock, CourseBlockType, CourseCheck, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseQuestionKind } from './types';
 
 interface Props {
   initial: CourseDraft;
@@ -463,98 +464,181 @@ function BlockFields({
 function QuizBlockEditor({ block, set }: { block: Extract<CourseBlock, { type: 'quiz' }>; set: (patch: Record<string, unknown>) => void }) {
   const questions = block.questions ?? [];
   const setQuestions = (next: CourseQuestion[]) => set({ questions: next });
-  const patchQuestion = (i: number, patch: Partial<CourseQuestion>) =>
-    setQuestions(questions.map((q, j) => (j === i ? { ...q, ...patch } : q)));
+  const replace = (i: number, next: CourseQuestion) => setQuestions(questions.map((q, j) => (j === i ? next : q)));
 
   return (
     <div className="space-y-2">
       <input value={block.title ?? ''} onChange={(e) => set({ title: e.target.value })} className={INPUT} placeholder="Title of the self-check (optional)" />
       <p className="text-xs text-navy-400">
-        It never blocks the lesson: the student answers, sees the right answer and why, and can try again. A question with no right
-        answer picked, or fewer than two options, isn't published.
+        It never blocks the lesson: the student answers, sees the right answer and why, and can try again. A question still
+        missing its right answer isn't published — the rest of the course goes out without it.
       </p>
 
-      {questions.map((question, i) => {
-        const options = question.options ?? [];
-        return (
-          <div key={question.id} className="rounded-md border border-navy-100 bg-navy-50/50 p-2">
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-navy-400">Question {i + 1}</span>
-              <span className="flex-1" />
-              <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => setQuestions(move(questions, i, -1))} className={`${SMALL} text-navy-400 hover:bg-navy-100 disabled:opacity-30`}>
-                <ArrowUp className="h-3 w-3" />
-              </button>
-              <button type="button" aria-label="Move down" disabled={i === questions.length - 1} onClick={() => setQuestions(move(questions, i, 1))} className={`${SMALL} text-navy-400 hover:bg-navy-100 disabled:opacity-30`}>
-                <ArrowDown className="h-3 w-3" />
-              </button>
-              <button type="button" aria-label="Remove question" onClick={() => setQuestions(questions.filter((_, j) => j !== i))} className={`${SMALL} text-red-500 hover:bg-red-50`}>
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-
-            <textarea value={question.prompt} onChange={(e) => patchQuestion(i, { prompt: e.target.value })} rows={2} className={INPUT} placeholder="The question" />
-
-            <div className="mt-2 space-y-1.5">
-              {options.map((option, o) => (
-                <div key={option.id} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label={question.answer === option.id ? 'The right answer' : 'Mark as the right answer'}
-                    aria-pressed={question.answer === option.id}
-                    onClick={() => patchQuestion(i, { answer: option.id })}
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${question.answer === option.id ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-navy-200 bg-white text-transparent hover:border-emerald-400'}`}
-                  >
-                    <Check className="h-3 w-3" />
-                  </button>
-                  <input
-                    value={option.text}
-                    onChange={(e) => patchQuestion(i, { options: options.map((x, j) => (j === o ? { ...x, text: e.target.value } : x)) })}
-                    className={INPUT}
-                    placeholder={`Option ${o + 1}`}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Remove option"
-                    disabled={options.length <= 2}
-                    onClick={() =>
-                      patchQuestion(i, {
-                        options: options.filter((_, j) => j !== o),
-                        ...(question.answer === option.id ? { answer: '' } : {}),
-                      })
-                    }
-                    className={`${SMALL} text-red-500 hover:bg-red-50 disabled:opacity-30`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              {options.length < MAX_QUIZ_OPTIONS && (
-                <button type="button" onClick={() => patchQuestion(i, { options: [...options, { id: newId('o'), text: '' }] })} className={`${SMALL} text-brand hover:bg-navy-100`}>
-                  + Option
-                </button>
-              )}
-            </div>
-
-            {question.prompt.trim() && !options.some((o) => o.id === question.answer) && (
-              <p className="mt-1.5 text-xs text-red-500">Click the circle next to the right answer.</p>
-            )}
-
-            <textarea
-              value={question.explanation ?? ''}
-              onChange={(e) => patchQuestion(i, { explanation: e.target.value })}
-              rows={2}
-              className={`${INPUT} mt-2`}
-              placeholder="Why that's the answer (optional, shown after answering)"
-            />
-          </div>
-        );
-      })}
+      {questions.map((question, i) => (
+        <QuestionEditor
+          key={question.id}
+          question={question}
+          index={i}
+          first={i === 0}
+          last={i === questions.length - 1}
+          onChange={(next) => replace(i, next)}
+          onRemove={() => setQuestions(questions.filter((_, j) => j !== i))}
+          onMove={(by) => setQuestions(move(questions, i, by))}
+        />
+      ))}
 
       {questions.length < MAX_QUIZ_QUESTIONS && (
         <button type="button" onClick={() => setQuestions([...questions, emptyQuestion()])} className={`${SMALL} text-brand hover:bg-navy-50`}>
           + Question
         </button>
       )}
+    </div>
+  );
+}
+
+function QuestionEditor({
+  question,
+  index,
+  first,
+  last,
+  onChange,
+  onRemove,
+  onMove,
+}: {
+  question: CourseQuestion;
+  index: number;
+  first: boolean;
+  last: boolean;
+  onChange: (next: CourseQuestion) => void;
+  onRemove: () => void;
+  onMove: (by: number) => void;
+}) {
+  const kind = questionKind(question);
+  const gaps = questionGaps(question);
+  const options = 'options' in question ? question.options : [];
+  const setOptions = (next: { id: string; text: string }[]) => onChange({ ...question, options: next } as CourseQuestion);
+
+  return (
+    <div className="rounded-md border border-navy-100 bg-navy-50/50 p-2">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-navy-400">Question {index + 1}</span>
+        <select
+          value={kind}
+          onChange={(e) => onChange(switchQuestionKind(question, e.target.value as CourseQuestionKind))}
+          className="rounded-md border border-navy-100 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-navy-600 outline-none focus:border-brand"
+        >
+          {QUESTION_KINDS.map((k) => (
+            <option key={k.kind} value={k.kind}>{k.label}</option>
+          ))}
+        </select>
+        <span className="flex-1" />
+        <button type="button" aria-label="Move up" disabled={first} onClick={() => onMove(-1)} className={`${SMALL} text-navy-400 hover:bg-navy-100 disabled:opacity-30`}>
+          <ArrowUp className="h-3 w-3" />
+        </button>
+        <button type="button" aria-label="Move down" disabled={last} onClick={() => onMove(1)} className={`${SMALL} text-navy-400 hover:bg-navy-100 disabled:opacity-30`}>
+          <ArrowDown className="h-3 w-3" />
+        </button>
+        <button type="button" aria-label="Remove question" onClick={onRemove} className={`${SMALL} text-red-500 hover:bg-red-50`}>
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+
+      <textarea value={question.prompt} onChange={(e) => onChange({ ...question, prompt: e.target.value })} rows={2} className={INPUT} placeholder="The question" />
+
+      {question.kind === 'typed' ? (
+        <div className="mt-2 space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-400">Accepted answers</p>
+          {question.accept.map((answer, a) => (
+            <div key={a} className="flex items-center gap-2">
+              <input
+                value={answer}
+                onChange={(e) => onChange({ ...question, accept: question.accept.map((x, j) => (j === a ? e.target.value : x)) })}
+                className={INPUT}
+                placeholder={a === 0 ? 'The answer, as you would write it' : 'Another wording that counts as right'}
+              />
+              <button
+                type="button"
+                aria-label="Remove answer"
+                disabled={question.accept.length <= 1}
+                onClick={() => onChange({ ...question, accept: question.accept.filter((_, j) => j !== a) })}
+                className={`${SMALL} text-red-500 hover:bg-red-50 disabled:opacity-30`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          {question.accept.length < MAX_TYPED_ANSWERS && (
+            <button type="button" onClick={() => onChange({ ...question, accept: [...question.accept, ''] })} className={`${SMALL} text-brand hover:bg-navy-100`}>
+              + Another wording
+            </button>
+          )}
+          <p className="text-xs text-navy-400">Upper and lower case and extra spaces never decide it.</p>
+        </div>
+      ) : (
+        <div className="mt-2 space-y-1.5">
+          {options.map((option, o) => {
+            const right =
+              question.kind === 'multi' ? question.answers.includes(option.id) : question.answer === option.id;
+            const pick = () => {
+              if (question.kind === 'multi') {
+                const answers = right ? question.answers.filter((a) => a !== option.id) : [...question.answers, option.id];
+                onChange({ ...question, answers });
+              } else {
+                onChange({ ...question, answer: option.id } as CourseQuestion);
+              }
+            };
+            return (
+              <div key={option.id} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label={right ? 'A right answer' : 'Mark as a right answer'}
+                  aria-pressed={right}
+                  onClick={pick}
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center border ${question.kind === 'multi' ? 'rounded' : 'rounded-full'} ${right ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-navy-200 bg-white text-transparent hover:border-emerald-400'}`}
+                >
+                  <Check className="h-3 w-3" />
+                </button>
+                <input
+                  value={option.text}
+                  onChange={(e) => setOptions(options.map((x, j) => (j === o ? { ...x, text: e.target.value } : x)))}
+                  className={INPUT}
+                  placeholder={`Option ${o + 1}`}
+                />
+                <button
+                  type="button"
+                  aria-label="Remove option"
+                  disabled={options.length <= 2}
+                  onClick={() => {
+                    const next = options.filter((_, j) => j !== o);
+                    if (question.kind === 'multi') onChange({ ...question, options: next, answers: question.answers.filter((a) => a !== option.id) });
+                    else onChange({ ...question, options: next, answer: question.answer === option.id ? '' : question.answer } as CourseQuestion);
+                  }}
+                  className={`${SMALL} text-red-500 hover:bg-red-50 disabled:opacity-30`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
+          {options.length < MAX_QUIZ_OPTIONS && (
+            <button type="button" onClick={() => setOptions([...options, { id: newId('o'), text: '' }])} className={`${SMALL} text-brand hover:bg-navy-100`}>
+              + Option
+            </button>
+          )}
+        </div>
+      )}
+
+      {gaps.length > 0 && question.prompt.trim() && (
+        <p className="mt-1.5 text-xs text-red-500">Not published yet: {gaps.join('; ')}.</p>
+      )}
+
+      <textarea
+        value={question.explanation ?? ''}
+        onChange={(e) => onChange({ ...question, explanation: e.target.value })}
+        rows={2}
+        className={`${INPUT} mt-2`}
+        placeholder="Why that's the answer (optional, shown after answering)"
+      />
     </div>
   );
 }

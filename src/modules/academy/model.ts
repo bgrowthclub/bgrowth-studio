@@ -1,4 +1,5 @@
-import type { CourseBlock, CourseBlockType, CourseContent, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseRow } from './types';
+import { questionKind } from './types';
+import type { CourseBlock, CourseBlockType, CourseContent, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseQuestionKind, CourseQuizOption, CourseRow } from './types';
 
 // Pure helpers for a course: no network, no React. The rules here mirror the
 // Portal's publishing schema (courseContent.schema.ts) and the server's
@@ -15,7 +16,14 @@ export const BLOCK_TYPES: { type: CourseBlockType; label: string; hint: string }
 ];
 
 export const MAX_QUIZ_QUESTIONS = 30;
-export const MAX_QUIZ_OPTIONS = 6;
+export const MAX_QUIZ_OPTIONS = 8;
+export const MAX_TYPED_ANSWERS = 10;
+
+export const QUESTION_KINDS: { kind: CourseQuestionKind; label: string; hint: string }[] = [
+  { kind: 'single', label: 'One right answer', hint: 'The student picks one option.' },
+  { kind: 'multi', label: 'Several right answers', hint: 'Tick all that apply; right only as a whole set.' },
+  { kind: 'typed', label: 'Typed answer', hint: 'The student writes it; case and spacing are ignored.' },
+];
 
 export const MAX_LESSON_MINUTES = 1440;
 
@@ -46,9 +54,30 @@ export function emptyBlock(type: CourseBlockType): CourseBlock {
 }
 
 /** A new question starts with two empty options and no right answer yet. */
-export function emptyQuestion(): CourseQuestion {
-  const options = [{ id: newId('o'), text: '' }, { id: newId('o'), text: '' }];
-  return { id: newId('q'), prompt: '', options, answer: '' };
+export function emptyQuestion(kind: CourseQuestionKind = 'single'): CourseQuestion {
+  const id = newId('q');
+  if (kind === 'typed') return { id, kind: 'typed', prompt: '', accept: [''] };
+  const options: CourseQuizOption[] = [{ id: newId('o'), text: '' }, { id: newId('o'), text: '' }];
+  if (kind === 'multi') return { id, kind: 'multi', prompt: '', options, answers: [] };
+  return { id, prompt: '', options, answer: '' };
+}
+
+/**
+ * Changes a question's kind, keeping what still means the same: the prompt,
+ * the explanation and the options. What cannot carry over (which option is
+ * right, the typed answers) is dropped rather than guessed, so the editor
+ * asks again instead of publishing a wrong key.
+ */
+export function switchQuestionKind(question: CourseQuestion, kind: CourseQuestionKind): CourseQuestion {
+  if (questionKind(question) === kind) return question;
+  const base = { id: question.id, prompt: question.prompt, ...(question.explanation ? { explanation: question.explanation } : {}) };
+  const options: CourseQuizOption[] =
+    'options' in question && question.options.length >= 2
+      ? question.options
+      : [{ id: newId('o'), text: '' }, { id: newId('o'), text: '' }];
+  if (kind === 'typed') return { ...base, kind: 'typed', accept: [''] };
+  if (kind === 'multi') return { ...base, kind: 'multi', options, answers: [] };
+  return { ...base, options, answer: '' };
 }
 
 export function emptyLesson(): CourseLesson {
@@ -146,29 +175,61 @@ function cleanBlock(block: CourseBlock): CourseBlock | null {
         ? { type: 'product', slug: block.slug.trim(), ...(block.label?.trim() ? { label: block.label.trim() } : {}), ...(block.note?.trim() ? { note: block.note.trim() } : {}) }
         : null;
     case 'quiz': {
-      // A half-written question is dropped rather than published: the
-      // schema would reject the whole course for it, and a question with no
-      // right answer can't teach anything.
-      const questions = (block.questions ?? [])
-        .map((q) => {
-          const options = q.options.map((o) => ({ id: o.id, text: o.text.trim() })).filter((o) => o.text);
-          if (!q.prompt.trim() || options.length < 2) return null;
-          if (!options.some((o) => o.id === q.answer)) return null;
-          return {
-            id: q.id,
-            prompt: q.prompt.trim(),
-            options: options.slice(0, MAX_QUIZ_OPTIONS),
-            answer: q.answer,
-            ...(q.explanation?.trim() ? { explanation: q.explanation.trim() } : {}),
-          };
-        })
-        .filter(Boolean) as CourseQuestion[];
+      // A half-written question is dropped rather than published: the schema
+      // would reject the whole course for it, and a question with no right
+      // answer can't teach anything. This is what lets a course imported
+      // from Wix publish while its answer-less questions wait to be filled
+      // in — they simply don't go out.
+      const questions = (block.questions ?? []).map(cleanQuestion).filter(Boolean) as CourseQuestion[];
       if (!questions.length) return null;
       return { type: 'quiz', ...(block.title?.trim() ? { title: block.title.trim() } : {}), questions: questions.slice(0, MAX_QUIZ_QUESTIONS) };
     }
     default:
       return null;
   }
+}
+
+function cleanQuestion(q: CourseQuestion): CourseQuestion | null {
+  const prompt = q.prompt.trim();
+  if (!prompt) return null;
+  const base = { id: q.id, prompt, ...(q.explanation?.trim() ? { explanation: q.explanation.trim() } : {}) };
+
+  if (q.kind === 'typed') {
+    const accept = q.accept.map((a) => a.trim()).filter(Boolean).slice(0, MAX_TYPED_ANSWERS);
+    return accept.length ? { ...base, kind: 'typed', accept } : null;
+  }
+
+  const options = q.options.map((o) => ({ id: o.id, text: o.text.trim() })).filter((o) => o.text).slice(0, MAX_QUIZ_OPTIONS);
+  if (options.length < 2) return null;
+
+  if (q.kind === 'multi') {
+    const answers = q.answers.filter((a, i) => options.some((o) => o.id === a) && q.answers.indexOf(a) === i);
+    // Every option marked right teaches nothing and the schema refuses it.
+    if (!answers.length || answers.length >= options.length) return null;
+    return { ...base, kind: 'multi', options, answers };
+  }
+
+  return options.some((o) => o.id === q.answer) ? { ...base, options, answer: q.answer } : null;
+}
+
+/** Everything a question still needs before it can be published. */
+export function questionGaps(q: CourseQuestion): string[] {
+  const gaps: string[] = [];
+  if (!q.prompt.trim()) gaps.push('no question written');
+  if (q.kind === 'typed') {
+    if (!q.accept.some((a) => a.trim())) gaps.push('no accepted answer');
+    return gaps;
+  }
+  const options = q.options.filter((o) => o.text.trim());
+  if (options.length < 2) gaps.push('needs at least two options');
+  if (q.kind === 'multi') {
+    const answers = q.answers.filter((a) => options.some((o) => o.id === a));
+    if (!answers.length) gaps.push('no right answer ticked');
+    else if (options.length && answers.length >= options.length) gaps.push('every option is marked right');
+  } else if (options.length && !options.some((o) => o.id === q.answer)) {
+    gaps.push('no right answer picked');
+  }
+  return gaps;
 }
 
 export function allLessons(content: CourseContent): CourseLesson[] {
@@ -206,33 +267,59 @@ export function slugFrom(name: string): string {
  */
 function repairBlock(block: CourseBlock): CourseBlock {
   if (block.type !== 'quiz') return block;
-  const questions = (Array.isArray(block.questions) ? block.questions : []).map((raw) => {
-    const q = (raw ?? {}) as Record<string, unknown>;
-    const options = (Array.isArray(q.options) ? q.options : []).map((o) => {
-      const option = (typeof o === 'string' ? { text: o } : (o ?? {})) as Record<string, unknown>;
-      return {
-        id: typeof option.id === 'string' && option.id ? option.id : newId('o'),
-        text: typeof option.text === 'string' ? option.text : '',
-      };
-    });
-    const given = q.answer;
-    let answer = typeof given === 'string' && options.some((o) => o.id === given) ? given : '';
-    if (!answer && typeof given === 'string') {
-      const byText = options.find((o) => o.text.trim().toLowerCase() === given.trim().toLowerCase());
-      const letter = given.trim().toLowerCase();
-      const byLetter = letter.length === 1 ? options[letter.charCodeAt(0) - 97] : undefined;
-      answer = byText?.id ?? byLetter?.id ?? '';
-    }
-    if (!answer && typeof given === 'number') answer = options[given]?.id ?? options[given - 1]?.id ?? '';
+  const questions = (Array.isArray(block.questions) ? block.questions : []).map(repairQuestion);
+  return { type: 'quiz', ...(typeof block.title === 'string' ? { title: block.title } : {}), questions };
+}
+
+function repairQuestion(raw: unknown): CourseQuestion {
+  const q = (raw ?? {}) as Record<string, unknown>;
+  const base = {
+    id: typeof q.id === 'string' && q.id ? q.id : newId('q'),
+    prompt: typeof q.prompt === 'string' ? q.prompt : '',
+    ...(typeof q.explanation === 'string' ? { explanation: q.explanation } : {}),
+  };
+
+  const kindGiven = typeof q.kind === 'string' ? q.kind : '';
+  const options: CourseQuizOption[] = (Array.isArray(q.options) ? q.options : []).map((o) => {
+    const option = (typeof o === 'string' ? { text: o } : (o ?? {})) as Record<string, unknown>;
     return {
-      id: typeof q.id === 'string' && q.id ? q.id : newId('q'),
-      prompt: typeof q.prompt === 'string' ? q.prompt : '',
-      options,
-      answer,
-      ...(typeof q.explanation === 'string' ? { explanation: q.explanation } : {}),
+      id: typeof option.id === 'string' && option.id ? option.id : newId('o'),
+      text: typeof option.text === 'string' ? option.text : '',
     };
   });
-  return { type: 'quiz', ...(typeof block.title === 'string' ? { title: block.title } : {}), questions };
+
+  if (kindGiven === 'typed' || (!options.length && Array.isArray(q.accept))) {
+    const accept = (Array.isArray(q.accept) ? q.accept : [q.answer])
+      .filter((a): a is string => typeof a === 'string' && Boolean(a.trim()));
+    return { ...base, kind: 'typed', accept: accept.length ? accept : [''] };
+  }
+
+  if (kindGiven === 'multi' || Array.isArray(q.answers)) {
+    const given = Array.isArray(q.answers) ? q.answers : [];
+    const answers = given.map((a) => resolveOption(a, options)).filter((a): a is string => Boolean(a));
+    return { ...base, kind: 'multi', options, answers };
+  }
+
+  return { ...base, options, answer: resolveOption(q.answer, options) ?? '' };
+}
+
+/**
+ * The right answer as an option id. A quiz written by hand or by an
+ * assistant usually gives it as the option's text or its position ("2",
+ * "b"), so those are accepted too — anything else is left blank for the
+ * person to pick, never guessed.
+ */
+function resolveOption(given: unknown, options: CourseQuizOption[]): string | null {
+  if (typeof given === 'number') return options[given]?.id ?? options[given - 1]?.id ?? null;
+  if (typeof given !== 'string' || !given.trim()) return null;
+  if (options.some((o) => o.id === given)) return given;
+  const byText = options.find((o) => o.text.trim().toLowerCase() === given.trim().toLowerCase());
+  if (byText) return byText.id;
+  const letter = given.trim().toLowerCase();
+  if (letter.length === 1 && letter >= 'a' && letter <= 'h') return options[letter.charCodeAt(0) - 97]?.id ?? null;
+  const n = Number(letter);
+  if (Number.isInteger(n)) return options[n]?.id ?? options[n - 1]?.id ?? null;
+  return null;
 }
 
 export function move<T>(list: T[], from: number, by: number): T[] {

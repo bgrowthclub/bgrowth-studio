@@ -22,7 +22,10 @@ const ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 const BLOCK_TYPES = ['text', 'image', 'video', 'file', 'link', 'product', 'quiz'];
 const MAX_QUIZ_QUESTIONS = 30;
-const MAX_QUIZ_OPTIONS = 6;
+const MAX_QUIZ_OPTIONS = 8;
+const MAX_TYPED_ANSWERS = 10;
+// Mirrors CourseQuestion in src/modules/academy/types.ts: no kind = single.
+const QUESTION_KINDS = ['single', 'multi', 'typed'];
 const MAX_LESSON_MINUTES = 1440;
 const MAX_OUTCOMES = 10;
 
@@ -116,9 +119,23 @@ export function checkCourse(row) {
             const atQ = `${atBlock}, question ${qi + 1}`;
             if (!ID_RE.test(String(question?.id ?? ''))) problems.push(`${atQ}: the id uses letters, numbers, dashes and underscores.`);
             else if (questionIds.has(question.id))
-              problems.push(`${atQ}: two questions share the id “${question.id}” — an answer is kept per question id.`);
+              problems.push(`${atQ}: two questions share the id \u201c${question.id}\u201d \u2014 an answer is kept per question id.`);
             questionIds.add(question?.id);
             if (!String(question?.prompt ?? '').trim()) problems.push(`${atQ}: no question written.`);
+
+            const kind = question?.kind ?? 'single';
+            if (!QUESTION_KINDS.includes(kind)) {
+              problems.push(`${atQ}: unknown question type \u201c${kind}\u201d.`);
+              return;
+            }
+
+            // A typed answer has no options: `accept` is the whole key.
+            if (kind === 'typed') {
+              const accept = Array.isArray(question.accept) ? question.accept.filter((a) => String(a ?? '').trim()) : [];
+              if (!accept.length) problems.push(`${atQ}: no accepted answer.`);
+              if (accept.length > MAX_TYPED_ANSWERS) problems.push(`${atQ}: at most ${MAX_TYPED_ANSWERS} accepted answers.`);
+              return;
+            }
 
             const options = Array.isArray(question?.options) ? question.options : [];
             if (options.length < 2) problems.push(`${atQ}: a question needs at least two options.`);
@@ -126,10 +143,22 @@ export function checkCourse(row) {
             const optionIds = new Set();
             options.forEach((option, oi) => {
               if (!ID_RE.test(String(option?.id ?? ''))) problems.push(`${atQ}, option ${oi + 1}: the id uses letters, numbers, dashes and underscores.`);
-              else if (optionIds.has(option.id)) problems.push(`${atQ}, option ${oi + 1}: two options share the id “${option.id}”.`);
+              else if (optionIds.has(option.id)) problems.push(`${atQ}, option ${oi + 1}: two options share the id \u201c${option.id}\u201d.`);
               optionIds.add(option?.id);
               if (!String(option?.text ?? '').trim()) problems.push(`${atQ}, option ${oi + 1}: no text.`);
             });
+
+            if (kind === 'multi') {
+              const answers = Array.isArray(question.answers) ? question.answers : [];
+              if (!answers.length) problems.push(`${atQ}: no right answer ticked.`);
+              answers.forEach((answer) => {
+                if (!optionIds.has(answer)) problems.push(`${atQ}: a right answer isn't one of the options.`);
+              });
+              if (answers.length && options.length && answers.length >= options.length)
+                problems.push(`${atQ}: every option is marked right \u2014 leave at least one that isn't.`);
+              return;
+            }
+
             if (!optionIds.has(question?.answer)) problems.push(`${atQ}: no right answer picked.`);
           });
         }

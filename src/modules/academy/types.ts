@@ -22,15 +22,35 @@ export type CourseBlock =
    */
   | { type: 'quiz'; title?: string; questions: CourseQuestion[] };
 
-export interface CourseQuestion {
+export interface CourseQuestionBase {
   /** Stable: the student's answer is saved against it. */
   id: string;
   prompt: string;
-  options: { id: string; text: string }[];
-  /** The id of the one right option. */
-  answer: string;
   /** Shown after answering, right or wrong. */
   explanation?: string;
+}
+
+export interface CourseQuizOption {
+  id: string;
+  text: string;
+}
+
+export type CourseQuestionKind = 'single' | 'multi' | 'typed';
+
+/**
+ * The three kinds of question (multi and typed added 02/11/2026, when the
+ * Wix courses turned out to be only about half single-choice). `kind` is
+ * absent on a single-choice question, so quizzes written before the others
+ * existed stay valid.
+ */
+export type CourseQuestion =
+  | (CourseQuestionBase & { kind?: 'single'; options: CourseQuizOption[]; answer: string })
+  | (CourseQuestionBase & { kind: 'multi'; options: CourseQuizOption[]; answers: string[] })
+  /** A typed answer; `accept` holds every wording counted as right. */
+  | (CourseQuestionBase & { kind: 'typed'; accept: string[] });
+
+export function questionKind(question: CourseQuestion): CourseQuestionKind {
+  return question.kind ?? 'single';
 }
 
 export type CourseBlockType = CourseBlock['type'];
