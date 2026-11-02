@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, Plus, Upload, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ChevronRight, Plus, Upload, X } from 'lucide-react';
 import { PrimaryButton } from '../../components/ui/Button';
 import { ReleasePanel } from '../downloads/ReleasePanel';
 import { getCourse, saveCourseDraft } from './api';
-import { BLOCK_TYPES, MAX_LESSON_MINUTES, emptyBlock, emptyLesson, emptyModule, formatMinutes, move, parseCourseJson, slugFrom, totalMinutes } from './model';
-import type { CourseBlock, CourseBlockType, CourseCheck, CourseDraft, CourseLesson, CourseModule } from './types';
+import { BLOCK_TYPES, MAX_LESSON_MINUTES, MAX_QUIZ_OPTIONS, MAX_QUIZ_QUESTIONS, emptyBlock, emptyLesson, emptyModule, emptyQuestion, formatMinutes, move, newId, parseCourseJson, slugFrom, totalMinutes } from './model';
+import type { CourseBlock, CourseBlockType, CourseCheck, CourseDraft, CourseLesson, CourseModule, CourseQuestion } from './types';
 
 interface Props {
   initial: CourseDraft;
@@ -440,6 +440,8 @@ function BlockFields({
         </div>
       )}
 
+      {block.type === 'quiz' && <QuizBlockEditor block={block} set={set} />}
+
       {block.type === 'product' && (
         <div className="space-y-2">
           <input value={block.slug} onChange={(e) => set({ slug: e.target.value.trim() })} className={INPUT} placeholder="The product's address, e.g. notary-starter-kit" />
@@ -449,6 +451,109 @@ function BlockFields({
           </div>
           <p className="text-xs text-navy-400">The lesson points at the product — it never copies its content.</p>
         </div>
+      )}
+    </div>
+  );
+}
+
+// The quiz editor. A question is a prompt, two to six options, one of them
+// marked right, and an optional explanation shown after answering. The right
+// answer is picked by clicking the circle next to an option — stored as that
+// option's id, so rewording the option keeps it right.
+function QuizBlockEditor({ block, set }: { block: Extract<CourseBlock, { type: 'quiz' }>; set: (patch: Record<string, unknown>) => void }) {
+  const questions = block.questions ?? [];
+  const setQuestions = (next: CourseQuestion[]) => set({ questions: next });
+  const patchQuestion = (i: number, patch: Partial<CourseQuestion>) =>
+    setQuestions(questions.map((q, j) => (j === i ? { ...q, ...patch } : q)));
+
+  return (
+    <div className="space-y-2">
+      <input value={block.title ?? ''} onChange={(e) => set({ title: e.target.value })} className={INPUT} placeholder="Title of the self-check (optional)" />
+      <p className="text-xs text-navy-400">
+        It never blocks the lesson: the student answers, sees the right answer and why, and can try again. A question with no right
+        answer picked, or fewer than two options, isn't published.
+      </p>
+
+      {questions.map((question, i) => {
+        const options = question.options ?? [];
+        return (
+          <div key={question.id} className="rounded-md border border-navy-100 bg-navy-50/50 p-2">
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-navy-400">Question {i + 1}</span>
+              <span className="flex-1" />
+              <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => setQuestions(move(questions, i, -1))} className={`${SMALL} text-navy-400 hover:bg-navy-100 disabled:opacity-30`}>
+                <ArrowUp className="h-3 w-3" />
+              </button>
+              <button type="button" aria-label="Move down" disabled={i === questions.length - 1} onClick={() => setQuestions(move(questions, i, 1))} className={`${SMALL} text-navy-400 hover:bg-navy-100 disabled:opacity-30`}>
+                <ArrowDown className="h-3 w-3" />
+              </button>
+              <button type="button" aria-label="Remove question" onClick={() => setQuestions(questions.filter((_, j) => j !== i))} className={`${SMALL} text-red-500 hover:bg-red-50`}>
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+
+            <textarea value={question.prompt} onChange={(e) => patchQuestion(i, { prompt: e.target.value })} rows={2} className={INPUT} placeholder="The question" />
+
+            <div className="mt-2 space-y-1.5">
+              {options.map((option, o) => (
+                <div key={option.id} className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label={question.answer === option.id ? 'The right answer' : 'Mark as the right answer'}
+                    aria-pressed={question.answer === option.id}
+                    onClick={() => patchQuestion(i, { answer: option.id })}
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${question.answer === option.id ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-navy-200 bg-white text-transparent hover:border-emerald-400'}`}
+                  >
+                    <Check className="h-3 w-3" />
+                  </button>
+                  <input
+                    value={option.text}
+                    onChange={(e) => patchQuestion(i, { options: options.map((x, j) => (j === o ? { ...x, text: e.target.value } : x)) })}
+                    className={INPUT}
+                    placeholder={`Option ${o + 1}`}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Remove option"
+                    disabled={options.length <= 2}
+                    onClick={() =>
+                      patchQuestion(i, {
+                        options: options.filter((_, j) => j !== o),
+                        ...(question.answer === option.id ? { answer: '' } : {}),
+                      })
+                    }
+                    className={`${SMALL} text-red-500 hover:bg-red-50 disabled:opacity-30`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {options.length < MAX_QUIZ_OPTIONS && (
+                <button type="button" onClick={() => patchQuestion(i, { options: [...options, { id: newId('o'), text: '' }] })} className={`${SMALL} text-brand hover:bg-navy-100`}>
+                  + Option
+                </button>
+              )}
+            </div>
+
+            {question.prompt.trim() && !options.some((o) => o.id === question.answer) && (
+              <p className="mt-1.5 text-xs text-red-500">Click the circle next to the right answer.</p>
+            )}
+
+            <textarea
+              value={question.explanation ?? ''}
+              onChange={(e) => patchQuestion(i, { explanation: e.target.value })}
+              rows={2}
+              className={`${INPUT} mt-2`}
+              placeholder="Why that's the answer (optional, shown after answering)"
+            />
+          </div>
+        );
+      })}
+
+      {questions.length < MAX_QUIZ_QUESTIONS && (
+        <button type="button" onClick={() => setQuestions([...questions, emptyQuestion()])} className={`${SMALL} text-brand hover:bg-navy-50`}>
+          + Question
+        </button>
       )}
     </div>
   );

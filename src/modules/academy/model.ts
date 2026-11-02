@@ -1,4 +1,4 @@
-import type { CourseBlock, CourseBlockType, CourseContent, CourseDraft, CourseLesson, CourseModule, CourseRow } from './types';
+import type { CourseBlock, CourseBlockType, CourseContent, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseRow } from './types';
 
 // Pure helpers for a course: no network, no React. The rules here mirror the
 // Portal's publishing schema (courseContent.schema.ts) and the server's
@@ -11,13 +11,17 @@ export const BLOCK_TYPES: { type: CourseBlockType; label: string; hint: string }
   { type: 'file', label: 'File', hint: 'A file from the File Library, by its address.' },
   { type: 'link', label: 'Link', hint: 'An outside page — a source, a form.' },
   { type: 'product', label: 'Product', hint: 'The Growth System, Journey or download this lesson hands over.' },
+  { type: 'quiz', label: 'Quiz', hint: 'A self-check. The student sees the answer and why — it never blocks the lesson.' },
 ];
+
+export const MAX_QUIZ_QUESTIONS = 30;
+export const MAX_QUIZ_OPTIONS = 6;
 
 export const MAX_LESSON_MINUTES = 1440;
 
 let seq = 0;
-/** An id for a new module or lesson — stable, readable and unique enough. */
-export function newId(prefix: 'm' | 'l'): string {
+/** An id for a new module, lesson, question or option — unique enough. */
+export function newId(prefix: 'm' | 'l' | 'q' | 'o'): string {
   seq += 1;
   return `${prefix}${Date.now().toString(36)}${seq.toString(36)}`;
 }
@@ -34,9 +38,17 @@ export function emptyBlock(type: CourseBlockType): CourseBlock {
       return { type: 'link', url: '' };
     case 'product':
       return { type: 'product', slug: '' };
+    case 'quiz':
+      return { type: 'quiz', questions: [emptyQuestion()] };
     default:
       return { type: 'text', body: '' };
   }
+}
+
+/** A new question starts with two empty options and no right answer yet. */
+export function emptyQuestion(): CourseQuestion {
+  const options = [{ id: newId('o'), text: '' }, { id: newId('o'), text: '' }];
+  return { id: newId('q'), prompt: '', options, answer: '' };
 }
 
 export function emptyLesson(): CourseLesson {
@@ -133,6 +145,27 @@ function cleanBlock(block: CourseBlock): CourseBlock | null {
       return block.slug.trim()
         ? { type: 'product', slug: block.slug.trim(), ...(block.label?.trim() ? { label: block.label.trim() } : {}), ...(block.note?.trim() ? { note: block.note.trim() } : {}) }
         : null;
+    case 'quiz': {
+      // A half-written question is dropped rather than published: the
+      // schema would reject the whole course for it, and a question with no
+      // right answer can't teach anything.
+      const questions = (block.questions ?? [])
+        .map((q) => {
+          const options = q.options.map((o) => ({ id: o.id, text: o.text.trim() })).filter((o) => o.text);
+          if (!q.prompt.trim() || options.length < 2) return null;
+          if (!options.some((o) => o.id === q.answer)) return null;
+          return {
+            id: q.id,
+            prompt: q.prompt.trim(),
+            options: options.slice(0, MAX_QUIZ_OPTIONS),
+            answer: q.answer,
+            ...(q.explanation?.trim() ? { explanation: q.explanation.trim() } : {}),
+          };
+        })
+        .filter(Boolean) as CourseQuestion[];
+      if (!questions.length) return null;
+      return { type: 'quiz', ...(block.title?.trim() ? { title: block.title.trim() } : {}), questions: questions.slice(0, MAX_QUIZ_QUESTIONS) };
+    }
     default:
       return null;
   }
@@ -164,6 +197,42 @@ export function slugFrom(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
+}
+
+/**
+ * Fills in what a hand-written or assistant-written quiz usually leaves out:
+ * ids for the questions and options, and the right answer given as its text
+ * or its position ("2", "b") instead of an option id.
+ */
+function repairBlock(block: CourseBlock): CourseBlock {
+  if (block.type !== 'quiz') return block;
+  const questions = (Array.isArray(block.questions) ? block.questions : []).map((raw) => {
+    const q = (raw ?? {}) as Record<string, unknown>;
+    const options = (Array.isArray(q.options) ? q.options : []).map((o) => {
+      const option = (typeof o === 'string' ? { text: o } : (o ?? {})) as Record<string, unknown>;
+      return {
+        id: typeof option.id === 'string' && option.id ? option.id : newId('o'),
+        text: typeof option.text === 'string' ? option.text : '',
+      };
+    });
+    const given = q.answer;
+    let answer = typeof given === 'string' && options.some((o) => o.id === given) ? given : '';
+    if (!answer && typeof given === 'string') {
+      const byText = options.find((o) => o.text.trim().toLowerCase() === given.trim().toLowerCase());
+      const letter = given.trim().toLowerCase();
+      const byLetter = letter.length === 1 ? options[letter.charCodeAt(0) - 97] : undefined;
+      answer = byText?.id ?? byLetter?.id ?? '';
+    }
+    if (!answer && typeof given === 'number') answer = options[given]?.id ?? options[given - 1]?.id ?? '';
+    return {
+      id: typeof q.id === 'string' && q.id ? q.id : newId('q'),
+      prompt: typeof q.prompt === 'string' ? q.prompt : '',
+      options,
+      answer,
+      ...(typeof q.explanation === 'string' ? { explanation: q.explanation } : {}),
+    };
+  });
+  return { type: 'quiz', ...(typeof block.title === 'string' ? { title: block.title } : {}), questions };
 }
 
 export function move<T>(list: T[], from: number, by: number): T[] {
@@ -212,7 +281,9 @@ export function parseCourseJson(text: string): { content: CourseContent; name?: 
             id: typeof lesson.id === 'string' && lesson.id ? lesson.id : newId('l'),
             title: typeof lesson.title === 'string' ? lesson.title : '',
             ...(Number.isInteger(lesson.minutes) ? { minutes: lesson.minutes as number } : {}),
-            blocks: blocks.filter((b): b is CourseBlock => Boolean(b) && BLOCK_TYPES.some((t) => t.type === (b as CourseBlock).type)),
+            blocks: blocks
+              .filter((b): b is CourseBlock => Boolean(b) && BLOCK_TYPES.some((t) => t.type === (b as CourseBlock).type))
+              .map(repairBlock),
           };
         }),
       };
