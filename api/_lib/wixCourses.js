@@ -263,6 +263,34 @@ function quizFieldToQuestion(field) {
   return { ...base, kind: 'typed', accept: [] };
 }
 
+/**
+ * How long a lesson takes, estimated from what is in it. 200 words a minute
+ * is ordinary adult reading speed; the rest are small allowances. A video
+ * counts as nothing — its length is the one thing we cannot know from here,
+ * and guessing it would make the total a fiction.
+ *
+ * THE SAME RULE IS COPIED in src/modules/academy/model.ts
+ * (estimateLessonMinutes) — a function must not import from src/. Change
+ * both.
+ */
+function estimateLessonMinutes(blocks) {
+  let seconds = 0;
+  for (const block of blocks ?? []) {
+    if (block.type === 'text') {
+      const words = String(block.body ?? '').trim().split(/\s+/).filter(Boolean).length;
+      seconds += (words / 200) * 60;
+    } else if (block.type === 'quiz') {
+      seconds += (block.questions ?? []).length * 20;
+    } else if (block.type === 'image') {
+      seconds += 10;
+    } else if (block.type === 'file' || block.type === 'link' || block.type === 'product') {
+      seconds += 15;
+    }
+  }
+  if (seconds <= 0) return 0;
+  return Math.min(1440, Math.max(1, Math.round(seconds / 60)));
+}
+
 /* -------------------------------------------------------------- reading */
 
 async function listPrograms() {
@@ -328,7 +356,12 @@ async function readProgram(programId) {
         else blocks.push({ type: 'text', body: 'This lesson had a video hosted on Wix — add it again here.' });
       }
 
-      lessons.push({ id: keepId(step?.id, 'l'), title, blocks });
+      // Wix keeps no lesson times, so the import estimates one from the
+      // content. The author corrects it in the Studio; the estimate never
+      // overwrites a time already there, because an imported lesson has
+      // none to overwrite.
+      const minutes = estimateLessonMinutes(blocks);
+      lessons.push({ id: keepId(step?.id, 'l'), title, ...(minutes ? { minutes } : {}), blocks });
     }
 
     modules.push({
@@ -430,4 +463,4 @@ async function route(req, res, supabase) {
 }
 
 // Exported for the tests and for anyone reading the conversion rules.
-export const __internals = { ricosToBlocks, quizFieldToQuestion, slugFrom, imageUrl, fileUrl };
+export const __internals = { ricosToBlocks, quizFieldToQuestion, slugFrom, imageUrl, fileUrl, estimateLessonMinutes };

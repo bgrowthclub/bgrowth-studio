@@ -3,7 +3,7 @@ import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ChevronRight, Plus, 
 import { PrimaryButton } from '../../components/ui/Button';
 import { ReleasePanel } from '../downloads/ReleasePanel';
 import { getCourse, saveCourseDraft } from './api';
-import { BLOCK_TYPES, MAX_LESSON_MINUTES, MAX_QUIZ_OPTIONS, MAX_QUIZ_QUESTIONS, MAX_TYPED_ANSWERS, QUESTION_KINDS, emptyBlock, emptyLesson, emptyModule, emptyQuestion, formatMinutes, move, newId, parseCourseJson, questionGaps, slugFrom, switchQuestionKind, totalMinutes } from './model';
+import { BLOCK_TYPES, MAX_LESSON_MINUTES, MAX_QUIZ_OPTIONS, MAX_QUIZ_QUESTIONS, MAX_TYPED_ANSWERS, QUESTION_KINDS, emptyBlock, emptyLesson, emptyModule, emptyQuestion, estimateMissingTimes, formatMinutes, move, newId, parseCourseJson, questionGaps, slugFrom, switchQuestionKind, totalMinutes } from './model';
 import { questionKind } from './types';
 import type { CourseBlock, CourseBlockType, CourseCheck, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseQuestionKind } from './types';
 
@@ -26,6 +26,8 @@ const SMALL = 'rounded-md px-2 py-1 text-xs font-semibold';
  */
 export function CourseEditor({ initial, initialCheck, ownerEmail, onBack, onSaved }: Props) {
   const [draft, setDraft] = useState<CourseDraft>(initial);
+  // How many times the last estimate filled in, so the button can say so.
+  const [estimated, setEstimated] = useState<number | null>(null);
   const [check, setCheck] = useState<CourseCheck | null>(initialCheck);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -117,6 +119,10 @@ export function CourseEditor({ initial, initialCheck, ownerEmail, onBack, onSave
   }
 
   const minutes = totalMinutes(draft.content);
+  const missingTimes = draft.content.modules.reduce(
+    (n, m) => n + m.lessons.filter((l) => !l.minutes || l.minutes <= 0).length,
+    0,
+  );
   const lessonCount = draft.content.modules.reduce((n, m) => n + m.lessons.length, 0);
 
   return (
@@ -205,6 +211,23 @@ export function CourseEditor({ initial, initialCheck, ownerEmail, onBack, onSave
             {draft.content.modules.length} {draft.content.modules.length === 1 ? 'module' : 'modules'} · {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
             {minutes > 0 && ` · ${formatMinutes(minutes)}`}
           </p>
+          {missingTimes > 0 && (
+            <p className="text-xs text-navy-400">
+              {missingTimes} {missingTimes === 1 ? 'lesson has' : 'lessons have'} no time.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  const { content, filled } = estimateMissingTimes(draft.content);
+                  setDraft((d) => ({ ...d, content }));
+                  setEstimated(filled);
+                }}
+                className="font-semibold text-brand hover:underline"
+              >
+                Estimate from the text
+              </button>
+              {estimated !== null && <span className="ml-1 text-navy-500">Filled {estimated}. Adjust any that look wrong.</span>}
+            </p>
+          )}
         </div>
       </section>
 

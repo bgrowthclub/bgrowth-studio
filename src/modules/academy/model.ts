@@ -237,6 +237,56 @@ export function questionGaps(q: CourseQuestion): string[] {
   return gaps;
 }
 
+/**
+ * How long a lesson takes, estimated from what is in it (02/11/2026). The
+ * Wix courses carry no times, and filling ~2,200 lessons by hand was not an
+ * option, so this gives a sensible starting number the author can correct.
+ *
+ * 200 words a minute is ordinary adult reading speed for this kind of text.
+ * The rest are small, defensible allowances. A VIDEO counts as nothing: its
+ * length is the one thing we genuinely cannot know from here, and guessing
+ * it would make the total a fiction.
+ *
+ * THE SAME RULE IS COPIED in api/_lib/wixCourses.js, which stamps it during
+ * the import (a function must not import from src/). Change both.
+ */
+export function estimateLessonMinutes(blocks: CourseBlock[]): number {
+  let seconds = 0;
+  for (const block of blocks ?? []) {
+    if (block.type === 'text') {
+      const words = block.body.trim().split(/\s+/).filter(Boolean).length;
+      seconds += (words / 200) * 60;
+    } else if (block.type === 'quiz') {
+      seconds += (block.questions ?? []).length * 20;
+    } else if (block.type === 'image') {
+      seconds += 10;
+    } else if (block.type === 'file' || block.type === 'link' || block.type === 'product') {
+      seconds += 15;
+    }
+  }
+  if (seconds <= 0) return 0;
+  return Math.min(MAX_LESSON_MINUTES, Math.max(1, Math.round(seconds / 60)));
+}
+
+/**
+ * Fills in the lessons that have no time yet, leaving every time already
+ * typed alone — an estimate never overwrites a person's own number.
+ */
+export function estimateMissingTimes(content: CourseContent): { content: CourseContent; filled: number } {
+  let filled = 0;
+  const modules = content.modules.map((module) => ({
+    ...module,
+    lessons: module.lessons.map((lesson) => {
+      if (lesson.minutes && lesson.minutes > 0) return lesson;
+      const minutes = estimateLessonMinutes(lesson.blocks);
+      if (!minutes) return lesson;
+      filled += 1;
+      return { ...lesson, minutes };
+    }),
+  }));
+  return { content: { ...content, modules }, filled };
+}
+
 export function allLessons(content: CourseContent): CourseLesson[] {
   return content.modules.flatMap((m) => m.lessons);
 }
