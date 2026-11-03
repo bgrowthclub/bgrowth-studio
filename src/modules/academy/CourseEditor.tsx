@@ -3,9 +3,9 @@ import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ChevronRight, Plus, 
 import { PrimaryButton } from '../../components/ui/Button';
 import { ReleasePanel } from '../downloads/ReleasePanel';
 import { getCourse, saveCourseDraft } from './api';
-import { BLOCK_TYPES, MAX_LESSON_MINUTES, MAX_QUIZ_OPTIONS, MAX_QUIZ_QUESTIONS, MAX_TYPED_ANSWERS, QUESTION_KINDS, emptyBlock, emptyLesson, emptyModule, emptyQuestion, estimateMissingTimes, formatMinutes, move, newId, parseCourseJson, questionGaps, slugFrom, switchQuestionKind, totalMinutes } from './model';
+import { BLOCK_TYPES, CERTIFICATE_KINDS, MAX_LESSON_MINUTES, MAX_QUIZ_OPTIONS, MAX_QUIZ_QUESTIONS, MAX_TYPED_ANSWERS, QUESTION_KINDS, emptyBlock, emptyLesson, emptyModule, emptyQuestion, estimateMissingTimes, formatMinutes, move, newId, parseCourseJson, questionGaps, slugFrom, switchQuestionKind, totalMinutes } from './model';
 import { questionKind } from './types';
-import type { CourseBlock, CourseBlockType, CourseCheck, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseQuestionKind } from './types';
+import type { CertificateKind, CourseBlock, CourseBlockType, CourseCheck, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseQuestionKind } from './types';
 
 interface Props {
   initial: CourseDraft;
@@ -207,6 +207,44 @@ export function CourseEditor({ initial, initialCheck, ownerEmail, onBack, onSave
               />
             </div>
           )}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">Certificate</span>
+              <select
+                value={draft.content.certificate ?? 'completion'}
+                onChange={(e) => setDraft((d) => ({ ...d, content: { ...d.content, certificate: e.target.value as CertificateKind } }))}
+                className={INPUT}
+              >
+                {CERTIFICATE_KINDS.map((c) => (
+                  <option key={c.kind} value={c.kind} disabled={!c.available}>
+                    {c.label}
+                    {c.available ? '' : ' — not available yet'}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-navy-400">
+                {CERTIFICATE_KINDS.find((c) => c.kind === (draft.content.certificate ?? 'completion'))?.hint}
+              </span>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-400">Hours on the certificate</span>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={draft.content.hours ?? ''}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, content: { ...d.content, hours: e.target.value ? Number(e.target.value) : undefined } }))
+                }
+                className={INPUT}
+                placeholder="Leave empty to say nothing"
+              />
+              <span className="mt-1 block text-xs text-navy-400">
+                Your own number, not the estimate above — the certificate states it as a fact.
+              </span>
+            </label>
+          </div>
+
           <p className="text-xs text-navy-400">
             {draft.content.modules.length} {draft.content.modules.length === 1 ? 'module' : 'modules'} · {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
             {minutes > 0 && ` · ${formatMinutes(minutes)}`}

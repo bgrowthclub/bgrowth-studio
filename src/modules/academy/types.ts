@@ -70,11 +70,21 @@ export interface CourseModule {
   lessons: CourseLesson[];
 }
 
+export type CertificateKind = 'completion' | 'achievement' | 'participation';
+
 export interface CourseContent {
   kind: 'course';
   version: 1;
   intro?: string;
   outcomes?: string[];
+  /**
+   * Hours printed on the certificate (02/11/2026) — set by hand, never from
+   * the lessons' estimated minutes, which are a guess from how much text a
+   * lesson holds. Absent = the certificate doesn't mention hours.
+   */
+  hours?: number;
+  /** Which certificate this course issues. Absent = completion. */
+  certificate?: CertificateKind;
   modules: CourseModule[];
 }
 

@@ -65,6 +65,21 @@ export function checkCourse(row) {
   if (Array.isArray(content.outcomes) && content.outcomes.length > MAX_OUTCOMES)
     problems.push(`A course lists at most ${MAX_OUTCOMES} outcomes.`);
 
+  // Certificate (02/11/2026). 'achievement' needs a passing grade, which the
+  // quiz does not have — the Studio offers it disabled, and this refuses it
+  // too, so a course can never issue one by another route.
+  const certificate = content.certificate ?? 'completion';
+  if (!['completion', 'participation'].includes(certificate)) {
+    problems.push(
+      certificate === 'achievement'
+        ? 'Achievement certificates need a passing grade, which doesn\u2019t exist yet \u2014 choose Completion or Participation.'
+        : `Unknown certificate type \u201c${certificate}\u201d.`,
+    );
+  }
+  const hours = content.hours;
+  if (hours !== undefined && (!Number.isInteger(hours) || hours < 1 || hours > 999))
+    problems.push('The hours on the certificate have to be a whole number from 1 to 999.');
+
   // Ids are how a student's progress is kept (workspace_instances, data.kind
   // 'course'), so a repeated one would make two lessons share one tick.
   const moduleIds = new Set();

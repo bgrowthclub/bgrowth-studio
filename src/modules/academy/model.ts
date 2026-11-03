@@ -1,5 +1,5 @@
 import { questionKind } from './types';
-import type { CourseBlock, CourseBlockType, CourseContent, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseQuestionKind, CourseQuizOption, CourseRow } from './types';
+import type { CertificateKind, CourseBlock, CourseBlockType, CourseContent, CourseDraft, CourseLesson, CourseModule, CourseQuestion, CourseQuestionKind, CourseQuizOption, CourseRow } from './types';
 
 // Pure helpers for a course: no network, no React. The rules here mirror the
 // Portal's publishing schema (courseContent.schema.ts) and the server's
@@ -18,6 +18,15 @@ export const BLOCK_TYPES: { type: CourseBlockType; label: string; hint: string }
 export const MAX_QUIZ_QUESTIONS = 30;
 export const MAX_QUIZ_OPTIONS = 8;
 export const MAX_TYPED_ANSWERS = 10;
+
+// The certificate a course issues. 'achievement' means passing an assessment,
+// which does not exist yet: it is offered disabled so nothing can issue one by
+// accident, while the value already exists everywhere it will be needed.
+export const CERTIFICATE_KINDS: { kind: CertificateKind; label: string; hint: string; available: boolean }[] = [
+  { kind: 'completion', label: 'Completion', hint: 'The student went through the whole course.', available: true },
+  { kind: 'participation', label: 'Participation', hint: 'For a workshop or a short experience with nothing to complete.', available: true },
+  { kind: 'achievement', label: 'Achievement', hint: 'Needs a passing grade, which the quiz does not have yet.', available: false },
+];
 
 export const QUESTION_KINDS: { kind: CourseQuestionKind; label: string; hint: string }[] = [
   { kind: 'single', label: 'One right answer', hint: 'The student picks one option.' },
@@ -141,6 +150,8 @@ export function toSavedContent(content: CourseContent): CourseContent {
     version: 1,
     ...(content.intro?.trim() ? { intro: content.intro.trim() } : {}),
     ...(outcomes.length ? { outcomes } : {}),
+    ...(content.hours && content.hours > 0 ? { hours: Math.min(999, Math.round(content.hours)) } : {}),
+    ...(content.certificate ? { certificate: content.certificate } : {}),
     modules: content.modules.map((module) => ({
       id: module.id,
       title: module.title.trim(),
@@ -408,6 +419,10 @@ export function parseCourseJson(text: string): { content: CourseContent; name?: 
     kind: 'course',
     version: 1,
     ...(typeof raw.intro === 'string' ? { intro: raw.intro } : {}),
+    ...(Number.isInteger(raw.hours) ? { hours: raw.hours as number } : {}),
+    ...(raw.certificate === 'completion' || raw.certificate === 'achievement' || raw.certificate === 'participation'
+      ? { certificate: raw.certificate }
+      : {}),
     ...(Array.isArray(raw.outcomes) ? { outcomes: raw.outcomes.filter((o): o is string => typeof o === 'string') } : {}),
     modules: modules.map((m) => {
       const module = (m ?? {}) as Record<string, unknown>;
