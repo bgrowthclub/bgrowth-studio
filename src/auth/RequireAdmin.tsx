@@ -47,8 +47,20 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // WHY THE USER ID AND NOT THE SESSION (08/11/2026). This used to depend on
+  // the session object, which Supabase replaces on its own — when the token
+  // is refreshed (about hourly) and when the tab regains focus. Each
+  // replacement re-ran the check, which showed the spinner INSTEAD of the
+  // children, which unmounted the whole Studio and threw away every bit of
+  // its state. Someone editing a Journey or a course was dropped back on
+  // the list, apparently at random, losing unsaved work.
+  //
+  // The same person is still the same person after a token refresh, so the
+  // check runs per user, not per session object.
+  const userId = session?.user.id ?? null;
+
   useEffect(() => {
-    if (!session) {
+    if (!userId) {
       setIsCheckingAdmin(false);
       setIsAdmin(false);
       return;
@@ -59,7 +71,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
       .schema('portal')
       .from('studio_admins')
       .select('user_id')
-      .eq('user_id', session.user.id)
+      .eq('user_id', userId)
       .maybeSingle()
       .then(({ data }) => {
         if (cancelled) return;
@@ -69,9 +81,13 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [userId]);
 
-  if (isLoading || (session && isCheckingAdmin)) return <FullPageSpinner />;
+  // The spinner only before we know: once someone is in, a re-check never
+  // takes the screen away from them again. Belt and braces with the rule
+  // above — if any future change re-runs the check, it must not cost the
+  // person their work.
+  if (isLoading || (session && isCheckingAdmin && !isAdmin)) return <FullPageSpinner />;
   if (!session) return <AdminLoginPage />;
   if (!isAdmin) return <NotAuthorizedScreen email={session.user.email ?? null} onSignOut={signOut} />;
 
